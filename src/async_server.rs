@@ -55,11 +55,12 @@ where
         }
     }
 
-    pub fn serve(&mut self) -> ServerFuture {
-        match Core::new() {
-            Ok(reactor) => self.serve_with_handle(reactor.handle()),
-            Err(error) => Box::new(future::err(error.into()))
-        }
+    pub fn serve(&mut self) -> Result<()> {
+        let mut reactor = Core::new()?;
+        let handle = reactor.handle();
+        let server = self.serve_with_handle(handle);
+
+        reactor.run(server)
     }
 
     pub fn serve_with_handle(&mut self, handle: Handle) -> ServerFuture {
