@@ -14,7 +14,7 @@ impl Status {
     pub fn is_active(&self) -> bool {
         match *self {
             Status::Active => true,
-            _ => false
+            _ => false,
         }
     }
 
@@ -25,7 +25,7 @@ impl Status {
             (_, &Status::WouldBlock) => false,
             (&Status::WouldBlock, _) => true,
             (_, &Status::Finished) => false,
-            _ => true
+            _ => true,
         }
     }
 
@@ -70,8 +70,9 @@ impl Into<Poll<(), Error>> for Status {
             Status::Finished => Ok(Async::Ready(())),
             Status::WouldBlock => Ok(Async::NotReady),
             Status::Error(error) => Err(error),
-            Status::Active =>
-                Err(ErrorKind::ActiveStatusHasNoPollEquivalent.into()),
+            Status::Active => {
+                Err(ErrorKind::ActiveStatusHasNoPollEquivalent.into())
+            }
         }
     }
 }

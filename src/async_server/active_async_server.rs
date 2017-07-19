@@ -69,8 +69,10 @@ where
                 match self.connection.start_send(response) {
                     Ok(AsyncSink::Ready) => (),
                     Ok(AsyncSink::NotReady(response)) => {
-                        let status_update: Poll<(), Error> =
-                            Ok(Async::NotReady);
+                        let status_update: Poll<
+                            (),
+                            Error,
+                        > = Ok(Async::NotReady);
 
                         self.live_responses.push_front(response);
                         self.status.update(status_update);

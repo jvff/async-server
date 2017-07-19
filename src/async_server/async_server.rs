@@ -53,13 +53,14 @@ where
     pub fn serve_with_handle(&mut self, handle: Handle) -> ServerFuture {
         match TcpListener::bind(&self.address, &handle) {
             Ok(listener) => self.serve_on_listener(listener),
-            Err(error) => Box::new(future::err(error.into()))
+            Err(error) => Box::new(future::err(error.into())),
         }
     }
 
     fn serve_on_listener(&mut self, listener: TcpListener) -> ServerFuture {
         let connections = listener.incoming();
-        let single_connection = connections.take(1)
+        let single_connection = connections
+            .take(1)
             .into_future()
             .map_err::<_, Error>(|(error, _)| error.into())
             .and_then(|(maybe_connection, _)| {
@@ -72,7 +73,8 @@ where
         let service = self.service_factory.new_service().into_future();
         let protocol = self.protocol.clone();
         let server = single_connection.and_then(move |(socket, _)| {
-            protocol.bind_transport(socket)
+            protocol
+                .bind_transport(socket)
                 .into_future()
                 .join(service)
                 .map_err(|error| error.into())
