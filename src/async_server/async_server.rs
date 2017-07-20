@@ -10,7 +10,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_async_server::ActiveAsyncServer;
-use super::errors::{Error, ErrorKind, Result};
+use super::errors::{Error, ErrorKind, NormalizeError, Result};
 
 pub struct AsyncServer<S, P> {
     address: SocketAddr,
@@ -83,7 +83,7 @@ where
                 });
 
             connection
-                .map_err::<Error, _>(|error| error.into())
+                .normalize_error()
                 .into_future()
                 .flatten()
                 .join(service.map_err(|error| error.into()))
