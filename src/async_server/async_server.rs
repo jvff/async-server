@@ -2,7 +2,7 @@ use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use futures::future;
-use futures::{Future, IntoFuture, Stream};
+use futures::{Future, IntoFuture};
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_core::reactor::{Core, Handle};
 use tokio_io::codec::{Decoder, Encoder};
@@ -10,6 +10,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_async_server::ActiveAsyncServer;
+use super::connection_future::ConnectionFuture;
 use super::errors::{Error, ErrorKind, NormalizeError, Result};
 
 pub struct AsyncServer<S, P> {
@@ -57,21 +58,11 @@ where
     }
 
     fn serve_on_listener(&mut self, listener: TcpListener) -> ServerFuture {
-        let connections = listener.incoming();
-        let single_connection = connections
-            .take(1)
-            .into_future()
-            .map_err::<_, Error>(|(error, _)| error.into())
-            .and_then(|(maybe_connection, _)| {
-                let no_connections = ErrorKind::FailedToReceiveConnection;
-                let no_connections: Error = no_connections.into();
-
-                maybe_connection.ok_or(no_connections)
-            });
-
         let protocol = self.protocol.clone();
         let service = self.service_factory.new_service().into_future();
-        let server = single_connection.and_then(move |(socket, _)| {
+        let connection = ConnectionFuture::from(listener);
+
+        let server = connection.and_then(move |(socket, _)| {
             let lock_error: Error = ErrorKind::FailedToBindConnection.into();
 
             let connection =
