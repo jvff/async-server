@@ -79,14 +79,14 @@ where
                     protocol
                         .bind_transport(socket)
                         .into_future()
-                        .map_err::<_, Error>(|error| error.into())
+                        .normalize_error()
                 });
 
             connection
                 .normalize_error()
                 .into_future()
                 .flatten()
-                .join(service.map_err(|error| error.into()))
+                .join(service.normalize_error())
                 .map_err(|error| error.into())
                 .and_then(|(connection, service)| {
                     ActiveAsyncServer::new(connection, service)
