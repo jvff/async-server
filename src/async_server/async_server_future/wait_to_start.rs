@@ -7,7 +7,8 @@ use tokio_core::reactor::Handle;
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::state::{WaitForParameters, State};
+use super::state::State;
+use super::wait_for_parameters::WaitForParameters;
 use super::super::errors::Error;
 
 pub struct WaitToStart<S, P> {
