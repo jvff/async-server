@@ -64,9 +64,7 @@ where
 
         let server = connection
             .join(service.normalize_error())
-            .map(|(connection, service)| {
-                ActiveAsyncServer::new(connection, service)
-            })
+            .map(ActiveAsyncServer::from_tuple)
             .flatten();
 
         Box::new(server)

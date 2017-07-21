@@ -35,6 +35,10 @@ where
         }
     }
 
+    pub fn from_tuple((connection, service): (T, S)) -> Self {
+        Self::new(connection, service)
+    }
+
     fn try_to_get_new_request(&mut self) -> &mut Self {
         if self.status.is_active() {
             let new_request = self.connection.poll();
