@@ -6,7 +6,7 @@ use futures::{Future, Poll};
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 
-use self::state::{State, WaitForConnection};
+use self::state::State;
 use super::connection_future::ConnectionFuture;
 use super::errors::Error;
 
@@ -23,10 +23,9 @@ where
 {
     pub fn from(listener: TcpListener, protocol: Arc<Mutex<P>>) -> Self {
         let connection = ConnectionFuture::from(listener);
-        let state_data = WaitForConnection::from(connection, protocol);
 
         Self {
-            state: State::WaitingForConnection(state_data),
+            state: State::start_with(connection, protocol),
         }
     }
 }

@@ -115,6 +115,15 @@ impl<P> State<P>
 where
     P: ServerProto<TcpStream>,
 {
+    pub fn start_with(
+        connection: ConnectionFuture,
+        protocol: Arc<Mutex<P>>,
+    ) -> Self {
+        let state_data = WaitForConnection::from(connection, protocol);
+
+        State::WaitingForConnection(state_data)
+    }
+
     pub fn advance(&mut self) -> Poll<P::Transport, Error> {
         let state = mem::replace(self, State::Processing);
 
