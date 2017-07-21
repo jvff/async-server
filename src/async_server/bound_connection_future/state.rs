@@ -18,6 +18,39 @@ where
     Finished,
 }
 
+impl<P> State<P>
+where
+    P: ServerProto<TcpStream>,
+{
+    pub fn start_with(
+        connection: ConnectionFuture,
+        protocol: Arc<Mutex<P>>,
+    ) -> Self {
+        let state_data = WaitForConnection::from(connection, protocol);
+
+        State::WaitingForConnection(state_data)
+    }
+
+    pub fn advance(&mut self) -> Poll<P::Transport, Error> {
+        let state = mem::replace(self, State::Processing);
+
+        let (poll_result, new_state) = state.advance_to_new_state();
+
+        mem::replace(self, new_state);
+
+        poll_result
+    }
+
+    fn advance_to_new_state(self) -> (Poll<P::Transport, Error>, Self) {
+        match self {
+            State::WaitingForConnection(handler) => handler.advance(),
+            State::WaitingForBindResult(handler) => handler.advance(),
+            State::Processing => panic!("State has more than one owner"),
+            State::Finished => panic!("Future called twice"),
+        }
+    }
+}
+
 pub struct WaitForConnection<P> {
     connection: ConnectionFuture,
     protocol: Arc<Mutex<P>>,
@@ -108,38 +141,5 @@ where
 
     fn same_state(self) -> State<P> {
         State::WaitingForBindResult(self)
-    }
-}
-
-impl<P> State<P>
-where
-    P: ServerProto<TcpStream>,
-{
-    pub fn start_with(
-        connection: ConnectionFuture,
-        protocol: Arc<Mutex<P>>,
-    ) -> Self {
-        let state_data = WaitForConnection::from(connection, protocol);
-
-        State::WaitingForConnection(state_data)
-    }
-
-    pub fn advance(&mut self) -> Poll<P::Transport, Error> {
-        let state = mem::replace(self, State::Processing);
-
-        let (poll_result, new_state) = state.advance_to_new_state();
-
-        mem::replace(self, new_state);
-
-        poll_result
-    }
-
-    fn advance_to_new_state(self) -> (Poll<P::Transport, Error>, Self) {
-        match self {
-            State::WaitingForConnection(handler) => handler.advance(),
-            State::WaitingForBindResult(handler) => handler.advance(),
-            State::Processing => panic!("State has more than one owner"),
-            State::Finished => panic!("Future called twice"),
-        }
     }
 }
