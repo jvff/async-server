@@ -9,6 +9,7 @@ use tokio_core::reactor::Handle;
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
+use super::wait_to_start::WaitToStart;
 use super::super::active_async_server::ActiveAsyncServer;
 use super::super::bound_connection_future::BoundConnectionFuture;
 use super::super::errors::{Error, NormalizeError};
@@ -65,60 +66,6 @@ where
     }
 }
 
-pub struct WaitToStart<S, P> {
-    address: SocketAddr,
-    service_factory: S,
-    protocol: Arc<Mutex<P>>,
-    handle: Handle,
-}
-
-
-impl<S, P> WaitToStart<S, P>
-where
-    P: ServerProto<TcpStream>,
-    S: Clone + NewService<Request = P::Request, Response = P::Response>,
-    Error: From<S::Error>
-        + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>,
-{
-    fn new(
-        address: SocketAddr,
-        service_factory: S,
-        protocol: Arc<Mutex<P>>,
-        handle: Handle,
-    ) -> Self {
-        Self {
-            address,
-            service_factory,
-            protocol,
-            handle,
-        }
-    }
-
-    fn advance(self) -> (Poll<(), Error>, State<S, P>) {
-        let bind_result = TcpListener::bind(&self.address, &self.handle);
-
-        match bind_result {
-            Ok(listener) => self.create_server_parameters(listener),
-            Err(error) => (Err(error.into()), self.same_state()),
-        }
-    }
-
-    fn create_server_parameters(
-        self,
-        listener: TcpListener,
-    ) -> (Poll<(), Error>, State<S, P>) {
-        let service_factory = self.service_factory.clone();
-        let protocol = self.protocol.clone();
-
-        WaitForParameters::advance_with(listener, service_factory, protocol)
-    }
-
-    fn same_state(self) -> State<S, P> {
-        State::WaitingToStart(self)
-    }
-}
-
 pub struct WaitForParameters<S, P>
 where
     P: ServerProto<TcpStream>,
@@ -139,7 +86,7 @@ where
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>,
 {
-    fn advance_with(
+    pub fn advance_with(
         listener: TcpListener,
         service_factory: S,
         protocol: Arc<Mutex<P>>,
