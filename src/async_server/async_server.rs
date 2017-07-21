@@ -1,17 +1,14 @@
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use futures::future;
-use futures::{Future, IntoFuture};
-use tokio_core::net::{TcpListener, TcpStream};
+use tokio_core::net::TcpStream;
 use tokio_core::reactor::{Core, Handle};
 use tokio_io::codec::{Decoder, Encoder};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::active_async_server::ActiveAsyncServer;
-use super::bound_connection_future::BoundConnectionFuture;
-use super::errors::{Error, NormalizeError, Result};
+use super::async_server_future::AsyncServerFuture;
+use super::errors::{Error, Result};
 
 pub struct AsyncServer<S, P> {
     address: SocketAddr,
@@ -19,11 +16,9 @@ pub struct AsyncServer<S, P> {
     protocol: Arc<Mutex<P>>,
 }
 
-pub type ServerFuture = Box<Future<Item = (), Error = Error>>;
-
 impl<S, P> AsyncServer<S, P>
 where
-    S: NewService,
+    S: Clone + NewService,
     S::Instance: 'static,
     S::Request: 'static,
     S::Response: 'static,
@@ -50,23 +45,14 @@ where
         reactor.run(server)
     }
 
-    pub fn serve_with_handle(&mut self, handle: Handle) -> ServerFuture {
-        match TcpListener::bind(&self.address, &handle) {
-            Ok(listener) => self.serve_on_listener(listener),
-            Err(error) => Box::new(future::err(error.into())),
-        }
-    }
-
-    fn serve_on_listener(&mut self, listener: TcpListener) -> ServerFuture {
+    pub fn serve_with_handle(
+        &mut self,
+        handle: Handle,
+    ) -> AsyncServerFuture<S, P> {
+        let address = self.address.clone();
         let protocol = self.protocol.clone();
-        let service = self.service_factory.new_service().into_future();
-        let connection = BoundConnectionFuture::from(listener, protocol);
+        let service_factory = self.service_factory.clone();
 
-        let server = connection
-            .join(service.normalize_error())
-            .map(ActiveAsyncServer::from_tuple)
-            .flatten();
-
-        Box::new(server)
+        AsyncServerFuture::new(address, service_factory, protocol, handle)
     }
 }
