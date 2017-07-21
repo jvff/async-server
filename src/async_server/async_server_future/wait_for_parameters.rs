@@ -6,7 +6,8 @@ use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::state::{ServerReady, State};
+use super::server_ready::ServerReady;
+use super::state::State;
 use super::super::bound_connection_future::BoundConnectionFuture;
 use super::super::errors::{Error, NormalizeError};
 
