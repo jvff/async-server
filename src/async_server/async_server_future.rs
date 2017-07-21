@@ -11,30 +11,21 @@ use tokio_service::NewService;
 
 use super::active_async_server::ActiveAsyncServer;
 use super::bound_connection_future::BoundConnectionFuture;
-use super::errors::{Error, NormalizeError, Result};
-
-type ServerParametersFuture<S, P> = Join<
-    BoundConnectionFuture<P>,
-    FutureResult<S, Error>,
->;
+use super::errors::{Error, NormalizeError};
 
 pub struct AsyncServerFuture<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>,
 {
-    address: SocketAddr,
-    service_factory: S,
-    protocol: Arc<Mutex<P>>,
-    handle: Handle,
-    server_parameters: Option<Result<ServerParametersFuture<S::Instance, P>>>,
-    server: Option<ActiveAsyncServer<S::Instance, P::Transport>>,
+    state: State<S, P>,
 }
 
 impl<S, P> AsyncServerFuture<S, P>
 where
     P: ServerProto<TcpStream>,
-    S: NewService<Request = P::Request, Response = P::Response>,
+    S: Clone + NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>,
@@ -45,112 +36,214 @@ where
         protocol: Arc<Mutex<P>>,
         handle: Handle,
     ) -> Self {
-        Self {
-            address,
-            service_factory,
-            protocol,
-            handle,
-            server_parameters: None,
-            server: None,
-        }
-    }
+        let state =
+            State::start_with(address, service_factory, protocol, handle);
 
-    fn start_listening(&mut self) -> Poll<(), Error> {
-        let bind_result = TcpListener::bind(&self.address, &self.handle);
-
-        self.server_parameters = match bind_result {
-            Ok(listener) => Some(Ok(self.create_server_parameters(listener))),
-            Err(error) => Some(Err(error.into())),
-        };
-
-        self.poll_server_parameters()
-    }
-
-    fn create_server_parameters(
-        &mut self,
-        listener: TcpListener,
-    ) -> ServerParametersFuture<S::Instance, P> {
-        let service = self.service_factory.new_service();
-        let protocol = self.protocol.clone();
-        let connection = BoundConnectionFuture::from(listener, protocol);
-
-        connection.join(service.normalize_error())
-    }
-
-    fn poll_server_parameters(&mut self) -> Poll<(), Error> {
-        let parameters = mem::replace(&mut self.server_parameters, None);
-
-        let (poll_result, maybe_parameters) = match parameters {
-            Some(Ok(mut parameters)) => {
-                (parameters.poll(), Some(Ok(parameters)))
-            }
-            Some(Err(error)) => (Err(error), None),
-            None => {
-                panic!(
-                    "Attempt to poll server parameters future before it is \
-                     created"
-                )
-            }
-        };
-
-        mem::replace(&mut self.server_parameters, maybe_parameters);
-
-        match poll_result {
-            Ok(Async::Ready(parameters)) => self.start_server(parameters),
-            Ok(Async::NotReady) => Ok(Async::NotReady),
-            Err(error) => Err(error),
-        }
-    }
-
-    fn start_server(
-        &mut self,
-        parameters: (P::Transport, S::Instance),
-    ) -> Poll<(), Error> {
-        self.server = Some(ActiveAsyncServer::from_tuple(parameters));
-
-        self.poll_server()
-    }
-
-    fn poll_server(&mut self) -> Poll<(), Error> {
-        match self.server {
-            Some(ref mut server) => server.poll(),
-            None => {
-                panic!("Attempt to poll server future before it is created")
-            }
-        }
-    }
-
-    fn state(&self) -> State {
-        if self.server.is_some() {
-            State::ServerReady
-        } else if self.server_parameters.is_some() {
-            State::WaitingForParameters
-        } else {
-            State::NoParameters
-        }
+        Self { state }
     }
 }
 
 impl<S, P> Future for AsyncServerFuture<S, P>
 where
     P: ServerProto<TcpStream>,
-    S: NewService<Request = P::Request, Response = P::Response>,
+    S: Clone + NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>,
 {
     type Item = ();
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        match self.state() {
-            State::NoParameters => self.start_listening(),
-            State::WaitingForParameters => self.poll_server_parameters(),
-            State::ServerReady => self.poll_server(),
+        self.state.advance()
+    }
+}
+
+enum State<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>,
+{
+    WaitingToStart(WaitToStart<S, P>),
+    WaitingForParameters(WaitForParameters<S, P>),
+    ServerReady(ServerReady<S, P>),
+    Processing,
+}
+
+impl<S, P> State<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: Clone + NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>
+        + From<<P::Transport as Stream>::Error>
+        + From<<P::Transport as Sink>::SinkError>,
+{
+    fn start_with(
+        address: SocketAddr,
+        service_factory: S,
+        protocol: Arc<Mutex<P>>,
+        handle: Handle,
+    ) -> Self {
+        let wait_to_start =
+            WaitToStart::new(address, service_factory, protocol, handle);
+
+        State::WaitingToStart(wait_to_start)
+    }
+
+    fn advance(&mut self) -> Poll<(), Error> {
+        let state = mem::replace(self, State::Processing);
+
+        let (poll_result, new_state) = state.advance_to_new_state();
+
+        mem::replace(self, new_state);
+
+        poll_result
+    }
+
+    fn advance_to_new_state(self) -> (Poll<(), Error>, Self) {
+        match self {
+            State::WaitingToStart(handler) => handler.advance(),
+            State::WaitingForParameters(handler) => handler.advance(),
+            State::ServerReady(handler) => handler.advance(),
+            State::Processing => panic!("State has more than one owner"),
         }
     }
 }
 
-enum State {
-    NoParameters,
-    WaitingForParameters,
-    ServerReady,
+struct WaitToStart<S, P> {
+    address: SocketAddr,
+    service_factory: S,
+    protocol: Arc<Mutex<P>>,
+    handle: Handle,
+}
+
+
+impl<S, P> WaitToStart<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: Clone + NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>
+        + From<<P::Transport as Stream>::Error>
+        + From<<P::Transport as Sink>::SinkError>,
+{
+    fn new(
+        address: SocketAddr,
+        service_factory: S,
+        protocol: Arc<Mutex<P>>,
+        handle: Handle,
+    ) -> Self {
+        Self {
+            address,
+            service_factory,
+            protocol,
+            handle,
+        }
+    }
+
+    fn advance(self) -> (Poll<(), Error>, State<S, P>) {
+        let bind_result = TcpListener::bind(&self.address, &self.handle);
+
+        match bind_result {
+            Ok(listener) => self.create_server_parameters(listener),
+            Err(error) => (Err(error.into()), self.same_state()),
+        }
+    }
+
+    fn create_server_parameters(
+        self,
+        listener: TcpListener,
+    ) -> (Poll<(), Error>, State<S, P>) {
+        let service_factory = self.service_factory.clone();
+        let protocol = self.protocol.clone();
+
+        WaitForParameters::advance_with(listener, service_factory, protocol)
+    }
+
+    fn same_state(self) -> State<S, P> {
+        State::WaitingToStart(self)
+    }
+}
+
+struct WaitForParameters<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: NewService,
+    Error: From<S::Error>,
+{
+    parameters: Join<
+        BoundConnectionFuture<P>,
+        FutureResult<S::Instance, Error>,
+    >,
+}
+
+impl<S, P> WaitForParameters<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>
+        + From<<P::Transport as Stream>::Error>
+        + From<<P::Transport as Sink>::SinkError>,
+{
+    fn advance_with(
+        listener: TcpListener,
+        service_factory: S,
+        protocol: Arc<Mutex<P>>,
+    ) -> (Poll<(), Error>, State<S, P>) {
+        let service = service_factory.new_service();
+        let connection = BoundConnectionFuture::from(listener, protocol);
+        let parameters = connection.join(service.normalize_error());
+
+        let wait_for_parameters = WaitForParameters { parameters };
+
+        wait_for_parameters.advance()
+    }
+
+    fn advance(mut self) -> (Poll<(), Error>, State<S, P>) {
+        match self.parameters.poll() {
+            Ok(Async::Ready(parameters)) => self.create_server(parameters),
+            Ok(Async::NotReady) => (Ok(Async::NotReady), self.same_state()),
+            Err(error) => (Err(error), self.same_state()),
+        }
+    }
+
+    fn create_server(
+        self,
+        parameters_tuple: (P::Transport, S::Instance),
+    ) -> (Poll<(), Error>, State<S, P>) {
+        ServerReady::advance_with(parameters_tuple)
+    }
+
+    fn same_state(self) -> State<S, P> {
+        State::WaitingForParameters(self)
+    }
+}
+
+struct ServerReady<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: NewService<Request = P::Request, Response = P::Response>,
+{
+    server: ActiveAsyncServer<S::Instance, P::Transport>,
+}
+
+impl<S, P> ServerReady<S, P>
+where
+    P: ServerProto<TcpStream>,
+    S: NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>
+        + From<<P::Transport as Stream>::Error>
+        + From<<P::Transport as Sink>::SinkError>,
+{
+    fn advance_with(
+        parameters_tuple: (P::Transport, S::Instance),
+    ) -> (Poll<(), Error>, State<S, P>) {
+        let server_ready = Self {
+            server: ActiveAsyncServer::from_tuple(parameters_tuple),
+        };
+
+        server_ready.advance()
+    }
+
+    fn advance(mut self) -> (Poll<(), Error>, State<S, P>) {
+        (self.server.poll(), State::ServerReady(self))
+    }
 }
