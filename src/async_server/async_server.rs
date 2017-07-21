@@ -10,8 +10,8 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_async_server::ActiveAsyncServer;
-use super::connection_future::ConnectionFuture;
-use super::errors::{Error, ErrorKind, NormalizeError, Result};
+use super::bound_connection_future::BoundConnectionFuture;
+use super::errors::{Error, NormalizeError, Result};
 
 pub struct AsyncServer<S, P> {
     address: SocketAddr,
@@ -60,29 +60,14 @@ where
     fn serve_on_listener(&mut self, listener: TcpListener) -> ServerFuture {
         let protocol = self.protocol.clone();
         let service = self.service_factory.new_service().into_future();
-        let connection = ConnectionFuture::from(listener);
+        let connection = BoundConnectionFuture::from(listener, protocol);
 
-        let server = connection.and_then(move |(socket, _)| {
-            let lock_error: Error = ErrorKind::FailedToBindConnection.into();
-
-            let connection =
-                protocol.lock().map_err(|_| lock_error).map(|protocol| {
-                    protocol
-                        .bind_transport(socket)
-                        .into_future()
-                        .normalize_error()
-                });
-
-            connection
-                .normalize_error()
-                .into_future()
-                .flatten()
-                .join(service.normalize_error())
-                .map_err(|error| error.into())
-                .and_then(|(connection, service)| {
-                    ActiveAsyncServer::new(connection, service)
-                })
-        });
+        let server = connection
+            .join(service.normalize_error())
+            .map(|(connection, service)| {
+                ActiveAsyncServer::new(connection, service)
+            })
+            .flatten();
 
         Box::new(server)
     }
