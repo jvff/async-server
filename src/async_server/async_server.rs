@@ -39,7 +39,7 @@ where
         }
     }
 
-    pub fn serve(&mut self) -> Result<()> {
+    pub fn serve(self) -> Result<()> {
         let mut reactor = Core::new()?;
         let handle = reactor.handle();
         let server = self.serve_with_handle(handle);
@@ -48,13 +48,13 @@ where
     }
 
     pub fn serve_with_handle(
-        &mut self,
+        self,
         handle: Handle,
     ) -> Flatten<AsyncServerStart<S, P>> {
         self.start(handle).flatten()
     }
 
-    pub fn start(&mut self, handle: Handle) -> AsyncServerStart<S, P> {
+    pub fn start(self, handle: Handle) -> AsyncServerStart<S, P> {
         let address = self.address.clone();
         let protocol = self.protocol.clone();
         let service_factory = self.service_factory.clone();
