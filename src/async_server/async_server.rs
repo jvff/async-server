@@ -1,13 +1,15 @@
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
+use futures::Future;
+use futures::future::Flatten;
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::{Core, Handle};
 use tokio_io::codec::{Decoder, Encoder};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::async_server_future::AsyncServerFuture;
+use super::async_server_start::AsyncServerStart;
 use super::errors::{Error, Result};
 
 pub struct AsyncServer<S, P> {
@@ -48,11 +50,15 @@ where
     pub fn serve_with_handle(
         &mut self,
         handle: Handle,
-    ) -> AsyncServerFuture<S, P> {
+    ) -> Flatten<AsyncServerStart<S, P>> {
+        self.start(handle).flatten()
+    }
+
+    pub fn start(&mut self, handle: Handle) -> AsyncServerStart<S, P> {
         let address = self.address.clone();
         let protocol = self.protocol.clone();
         let service_factory = self.service_factory.clone();
 
-        AsyncServerFuture::new(address, service_factory, protocol, handle)
+        AsyncServerStart::new(address, service_factory, protocol, handle)
     }
 }

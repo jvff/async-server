@@ -1,16 +1,13 @@
 use std::mem;
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use futures::{Poll, Sink, Stream};
-use tokio_core::net::TcpStream;
-use tokio_core::reactor::Handle;
+use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::server_ready::ServerReady;
 use super::wait_for_parameters::WaitForParameters;
-use super::wait_to_start::WaitToStart;
 use super::super::errors::Error;
 
 pub enum State<S, P>
@@ -19,7 +16,6 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>,
 {
-    WaitingToStart(WaitToStart<S, P>),
     WaitingForParameters(WaitForParameters<S, P>),
     ServerReady(ServerReady<S, P>),
     Processing,
@@ -34,15 +30,14 @@ where
         + From<<P::Transport as Sink>::SinkError>,
 {
     pub fn start_with(
-        address: SocketAddr,
+        listener: TcpListener,
         service_factory: S,
         protocol: Arc<Mutex<P>>,
-        handle: Handle,
     ) -> Self {
-        let wait_to_start =
-            WaitToStart::new(address, service_factory, protocol, handle);
+        let wait_for_parameters =
+            WaitForParameters::new(listener, service_factory, protocol);
 
-        State::WaitingToStart(wait_to_start)
+        State::WaitingForParameters(wait_for_parameters)
     }
 
     pub fn advance(&mut self) -> Poll<(), Error> {
@@ -57,7 +52,6 @@ where
 
     fn advance_to_new_state(self) -> (Poll<(), Error>, Self) {
         match self {
-            State::WaitingToStart(handler) => handler.advance(),
             State::WaitingForParameters(handler) => handler.advance(),
             State::ServerReady(handler) => handler.advance(),
             State::Processing => panic!("State has more than one owner"),

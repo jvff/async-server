@@ -1,9 +1,7 @@
-use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
 use futures::{Future, Poll, Sink, Stream};
-use tokio_core::net::TcpStream;
-use tokio_core::reactor::Handle;
+use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
@@ -28,15 +26,13 @@ where
         + From<<P::Transport as Sink>::SinkError>,
 {
     pub fn new(
-        address: SocketAddr,
+        listener: TcpListener,
         service_factory: S,
         protocol: Arc<Mutex<P>>,
-        handle: Handle,
     ) -> Self {
-        let state =
-            State::start_with(address, service_factory, protocol, handle);
-
-        Self { state }
+        AsyncServerFuture {
+            state: State::start_with(listener, service_factory, protocol),
+        }
     }
 }
 
