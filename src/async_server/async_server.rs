@@ -55,9 +55,9 @@ where
     }
 
     pub fn start(self, handle: Handle) -> AsyncServerStart<S, P> {
-        let address = self.address.clone();
-        let protocol = self.protocol.clone();
-        let service_factory = self.service_factory.clone();
+        let address = self.address;
+        let protocol = self.protocol;
+        let service_factory = self.service_factory;
 
         AsyncServerStart::new(address, service_factory, protocol, handle)
     }
