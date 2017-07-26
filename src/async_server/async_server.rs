@@ -50,8 +50,8 @@ where
     pub fn serve_with_handle(
         self,
         handle: Handle,
-    ) -> Flatten<AsyncServerStart<S, P>> {
-        self.start(handle).flatten()
+    ) -> Flatten<Flatten<AsyncServerStart<S, P>>> {
+        self.start(handle).flatten().flatten()
     }
 
     pub fn start(self, handle: Handle) -> AsyncServerStart<S, P> {

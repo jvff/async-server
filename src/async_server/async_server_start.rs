@@ -8,7 +8,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::errors::Error;
-use super::async_server_future::AsyncServerFuture;
+use super::listening_async_server::ListeningAsyncServer;
 
 pub struct AsyncServerStart<S, P> {
     address: SocketAddr,
@@ -45,7 +45,7 @@ where
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>,
 {
-    type Item = AsyncServerFuture<S, P>;
+    type Item = ListeningAsyncServer<S, P>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
@@ -53,9 +53,11 @@ where
         let protocol = self.protocol.clone();
 
         let listener = TcpListener::bind(&self.address, &self.handle)?;
-        let future =
-            AsyncServerFuture::new(listener, service_factory, protocol);
 
-        Ok(Async::Ready(future))
+        Ok(Async::Ready(ListeningAsyncServer::new(
+            listener,
+            service_factory,
+            protocol,
+        )))
     }
 }
