@@ -19,8 +19,11 @@ pub struct AsyncServerStart<S, P> {
 
 impl<S, P> AsyncServerStart<S, P>
 where
-    S: NewService,
     P: ServerProto<TcpStream>,
+    S: NewService<Request = P::Request, Response = P::Response>,
+    Error: From<S::Error>
+        + From<<P::Transport as Stream>::Error>
+        + From<<P::Transport as Sink>::SinkError>,
 {
     pub fn new(
         address: SocketAddr,
@@ -35,12 +38,27 @@ where
             service_factory: Some(service_factory),
         }
     }
+
+    fn start_server(&mut self) -> Poll<ListeningAsyncServer<S, P>, Error> {
+        let listener = TcpListener::bind(&self.address, &self.handle)?;
+        let protocol = self.protocol.clone();
+
+        if let Some(service_factory) = self.service_factory.take() {
+            Ok(Async::Ready(ListeningAsyncServer::new(
+                listener,
+                service_factory,
+                protocol,
+            )))
+        } else {
+            Err(ErrorKind::AttemptToStartServerTwice.into())
+        }
+    }
 }
 
 impl<S, P> Future for AsyncServerStart<S, P>
 where
     P: ServerProto<TcpStream>,
-    S: Clone + NewService<Request = P::Request, Response = P::Response>,
+    S: NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>,
@@ -50,18 +68,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         if self.service_factory.is_some() {
-            let listener = TcpListener::bind(&self.address, &self.handle)?;
-            let protocol = self.protocol.clone();
-
-            if let Some(service_factory) = self.service_factory.take() {
-                Ok(Async::Ready(ListeningAsyncServer::new(
-                    listener,
-                    service_factory,
-                    protocol,
-                )))
-            } else {
-                Err(ErrorKind::AttemptToStartServerTwice.into())
-            }
+            self.start_server()
         } else {
             Err(ErrorKind::AttemptToStartServerTwice.into())
         }
