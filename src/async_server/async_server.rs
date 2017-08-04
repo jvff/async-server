@@ -20,13 +20,12 @@ pub struct AsyncServer<S, P> {
 
 impl<S, P> AsyncServer<S, P>
 where
-    S: Clone + NewService,
-    S::Instance: 'static,
-    S::Request: 'static,
-    S::Response: 'static,
+    S: NewService,
     P: Decoder<Item = S::Request>
         + Encoder<Item = S::Response>
         + ServerProto<TcpStream, Request = S::Request, Response = S::Response>,
+    S::Request: 'static,
+    S::Response: 'static,
     Error: From<<P as Decoder>::Error>
         + From<<P as Encoder>::Error>
         + From<S::Error>,
