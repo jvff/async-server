@@ -14,7 +14,7 @@ pub struct ListeningAsyncServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService,
-    Error: From<S::Error>,
+    Error: From<S::Error> + From<P::Error>,
 {
     connection_and_service: Join<
         BoundConnectionFuture<P>,
@@ -28,7 +28,8 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>,
+        + From<<P::Transport as Sink>::SinkError>
+        + From<P::Error>,
 {
     pub fn new(
         listener: TcpListener,
@@ -50,7 +51,8 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>,
+        + From<<P::Transport as Sink>::SinkError>
+        + From<P::Error>,
 {
     type Item = ActiveAsyncServer<S::Instance, P::Transport>;
     type Error = Error;

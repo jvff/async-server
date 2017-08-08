@@ -23,7 +23,8 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>,
+        + From<<P::Transport as Sink>::SinkError>
+        + From<P::Error>,
 {
     pub fn new(
         address: SocketAddr,
@@ -61,7 +62,8 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>,
+        + From<<P::Transport as Sink>::SinkError>
+        + From<P::Error>,
 {
     type Item = ListeningAsyncServer<S, P>;
     type Error = Error;

@@ -1,0 +1,3 @@
+[submodule "tokio-proto"]
+	path = tokio-proto
+	url = https://github.com/jvff/tokio-proto

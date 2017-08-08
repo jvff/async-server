@@ -28,6 +28,7 @@ where
     S::Response: 'static,
     Error: From<<P as Decoder>::Error>
         + From<<P as Encoder>::Error>
+        + From<<P as ServerProto<TcpStream>>::Error>
         + From<S::Error>,
 {
     pub fn new(address: SocketAddr, service_factory: S, protocol: P) -> Self {

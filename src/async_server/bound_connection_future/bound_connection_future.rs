@@ -18,6 +18,7 @@ where
 impl<P> BoundConnectionFuture<P>
 where
     P: ServerProto<TcpStream>,
+    Error: From<P::Error>,
 {
     pub fn from(listener: TcpListener, protocol: Arc<Mutex<P>>) -> Self {
         let connection = ConnectionFuture::from(listener);
@@ -31,6 +32,7 @@ where
 impl<P> Future for BoundConnectionFuture<P>
 where
     P: ServerProto<TcpStream>,
+    Error: From<P::Error>,
 {
     type Item = P::Transport;
     type Error = Error;
