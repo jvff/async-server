@@ -7,6 +7,6 @@ authors = ["Janito Vaqueiro Ferreira Filho <janito.vff@gmail.com>"]
 futures = "0.1"
 tokio-io = "0.1"
 tokio-core = "0.1"
-tokio-proto = {path = "./tokio-proto"}
+tokio-proto = { git = "https://github.com/jvff/tokio-proto", branch = "generic_error" }
 tokio-service = "0.1"
 error-chain = "0.10"
