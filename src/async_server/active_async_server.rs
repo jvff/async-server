@@ -6,6 +6,7 @@ use futures::stream::FuturesUnordered;
 use tokio_service::Service;
 
 use super::errors::Error;
+use super::finite_service::FiniteService;
 use super::status::Status;
 
 pub struct ActiveAsyncServer<S, T>
@@ -21,7 +22,7 @@ where
 
 impl<S, T> ActiveAsyncServer<S, T>
 where
-    S: Service,
+    S: FiniteService,
     T: Sink<SinkItem = S::Response> + Stream<Item = S::Request>,
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
@@ -93,6 +94,21 @@ where
         self
     }
 
+    fn check_if_finished(&mut self) {
+        if self.status.is_active() {
+            let no_pending_requests = self.live_requests.is_empty();
+            let no_pending_responses = self.live_responses.is_empty();
+
+            if no_pending_requests && no_pending_responses {
+                self.status = match self.service.has_finished() {
+                    Ok(true) => Status::Finished,
+                    Ok(false) => Status::Active,
+                    Err(error) => Status::Error(error.into()),
+                }
+            }
+        }
+    }
+
     fn poll_status(&mut self) -> Poll<(), Error> {
         let resulting_status = mem::replace(&mut self.status, Status::Active);
 
@@ -102,7 +118,7 @@ where
 
 impl<S, T> Future for ActiveAsyncServer<S, T>
 where
-    S: Service,
+    S: FiniteService,
     T: Sink<SinkItem = S::Response> + Stream<Item = S::Request>,
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
@@ -114,7 +130,8 @@ where
             self.try_to_get_new_request()
                 .try_to_get_new_response()
                 .try_to_send_responses()
-                .try_to_flush_responses();
+                .try_to_flush_responses()
+                .check_if_finished();
         }
 
         self.poll_status()

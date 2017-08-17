@@ -10,6 +10,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::async_server_start::AsyncServerStart;
+use super::finite_service::FiniteService;
 use super::errors::{Error, Result};
 
 pub struct AsyncServer<S, P> {
@@ -21,11 +22,12 @@ pub struct AsyncServer<S, P> {
 impl<S, P> AsyncServer<S, P>
 where
     S: NewService,
+    S::Instance: FiniteService,
+    S::Request: 'static,
+    S::Response: 'static,
     P: Decoder<Item = S::Request>
         + Encoder<Item = S::Response>
         + ServerProto<TcpStream, Request = S::Request, Response = S::Response>,
-    S::Request: 'static,
-    S::Response: 'static,
     Error: From<<P as Decoder>::Error>
         + From<<P as Encoder>::Error>
         + From<<P as ServerProto<TcpStream>>::Error>

@@ -9,6 +9,7 @@ use tokio_service::NewService;
 use super::active_async_server::ActiveAsyncServer;
 use super::bound_connection_future::BoundConnectionFuture;
 use super::errors::{Error, NormalizeError};
+use super::finite_service::FiniteService;
 
 pub struct ListeningAsyncServer<S, P>
 where
@@ -49,6 +50,7 @@ impl<S, P> Future for ListeningAsyncServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
+    S::Instance: FiniteService,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>
