@@ -9,9 +9,9 @@ use tokio_io::codec::{Decoder, Encoder};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::async_server_start::AsyncServerStart;
-use super::finite_service::FiniteService;
 use super::errors::{Error, Result};
+use super::finite_service::FiniteService;
+use super::start_server::StartServer;
 
 pub struct AsyncServer<S, P> {
     address: SocketAddr,
@@ -52,15 +52,15 @@ where
     pub fn serve_with_handle(
         self,
         handle: Handle,
-    ) -> Flatten<Flatten<AsyncServerStart<S, P>>> {
+    ) -> Flatten<Flatten<StartServer<S, P>>> {
         self.start(handle).flatten().flatten()
     }
 
-    pub fn start(self, handle: Handle) -> AsyncServerStart<S, P> {
+    pub fn start(self, handle: Handle) -> StartServer<S, P> {
         let address = self.address;
         let protocol = self.protocol;
         let service_factory = self.service_factory;
 
-        AsyncServerStart::new(address, service_factory, protocol, handle)
+        StartServer::new(address, service_factory, protocol, handle)
     }
 }

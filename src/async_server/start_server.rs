@@ -10,14 +10,14 @@ use tokio_service::NewService;
 use super::errors::{Error, ErrorKind};
 use super::listening_async_server::ListeningAsyncServer;
 
-pub struct AsyncServerStart<S, P> {
+pub struct StartServer<S, P> {
     address: SocketAddr,
     service_factory: Option<S>,
     protocol: Arc<Mutex<P>>,
     handle: Handle,
 }
 
-impl<S, P> AsyncServerStart<S, P>
+impl<S, P> StartServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
@@ -56,7 +56,7 @@ where
     }
 }
 
-impl<S, P> Future for AsyncServerStart<S, P>
+impl<S, P> Future for StartServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
