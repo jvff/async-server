@@ -18,6 +18,14 @@ impl Status {
         }
     }
 
+    pub fn update<T: Into<Status>>(&mut self, status_update: T) {
+        let status_update = status_update.into();
+
+        if status_update.is_more_severe_than(self) {
+            *self = status_update;
+        }
+    }
+
     fn is_more_severe_than(&self, other: &Status) -> bool {
         match (self, other) {
             (_, &Status::Error(_)) => false,
@@ -26,14 +34,6 @@ impl Status {
             (&Status::WouldBlock, _) => true,
             (_, &Status::Finished) => false,
             _ => true,
-        }
-    }
-
-    pub fn update<T: Into<Status>>(&mut self, status_update: T) {
-        let status_update = status_update.into();
-
-        if status_update.is_more_severe_than(self) {
-            *self = status_update;
         }
     }
 }
@@ -64,14 +64,20 @@ where
     }
 }
 
-impl Into<Poll<(), Error>> for Status {
-    fn into(self) -> Poll<(), Error> {
+impl<E> Into<Poll<(), E>> for Status
+where
+    E: From<Error>,
+{
+    fn into(self) -> Poll<(), E> {
         match self {
             Status::Finished => Ok(Async::Ready(())),
             Status::WouldBlock => Ok(Async::NotReady),
-            Status::Error(error) => Err(error),
+            Status::Error(error) => Err(error.into()).into(),
             Status::Active => {
-                Err(ErrorKind::ActiveStatusHasNoPollEquivalent.into())
+                let error_kind = ErrorKind::ActiveStatusHasNoPollEquivalent;
+                let error: Error = error_kind.into();
+
+                Err(error.into())
             }
         }
     }
