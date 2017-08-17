@@ -3,7 +3,6 @@ use std::mem;
 
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use futures::stream::FuturesUnordered;
-use tokio_service::Service;
 
 use super::errors::Error;
 use super::finite_service::FiniteService;
@@ -11,7 +10,7 @@ use super::status::Status;
 
 pub struct ActiveAsyncServer<S, T>
 where
-    S: Service,
+    S: FiniteService,
 {
     connection: T,
     service: S,
