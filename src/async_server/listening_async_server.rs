@@ -6,7 +6,7 @@ use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::active_async_server::ActiveAsyncServer;
+use super::active_server::ActiveServer;
 use super::bound_connection_future::BoundConnectionFuture;
 use super::errors::{Error, NormalizeError};
 use super::finite_service::FiniteService;
@@ -56,13 +56,13 @@ where
         + From<<P::Transport as Sink>::SinkError>
         + From<P::Error>,
 {
-    type Item = ActiveAsyncServer<S::Instance, P::Transport>;
+    type Item = ActiveServer<S::Instance, P::Transport>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let (connection, service) =
             try_ready!(self.connection_and_service.poll());
 
-        Ok(Async::Ready(ActiveAsyncServer::new(connection, service)))
+        Ok(Async::Ready(ActiveServer::new(connection, service)))
     }
 }

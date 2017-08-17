@@ -1,4 +1,4 @@
-mod active_async_server;
+mod active_server;
 mod async_server;
 mod bound_connection_future;
 mod connection_future;

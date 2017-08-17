@@ -8,7 +8,7 @@ use super::errors::Error;
 use super::finite_service::FiniteService;
 use super::status::Status;
 
-pub struct ActiveAsyncServer<S, T>
+pub struct ActiveServer<S, T>
 where
     S: FiniteService,
 {
@@ -19,7 +19,7 @@ where
     status: Status,
 }
 
-impl<S, T> ActiveAsyncServer<S, T>
+impl<S, T> ActiveServer<S, T>
 where
     S: FiniteService,
     T: Sink<SinkItem = S::Response> + Stream<Item = S::Request>,
@@ -115,7 +115,7 @@ where
     }
 }
 
-impl<S, T> Future for ActiveAsyncServer<S, T>
+impl<S, T> Future for ActiveServer<S, T>
 where
     S: FiniteService,
     T: Sink<SinkItem = S::Response> + Stream<Item = S::Request>,
