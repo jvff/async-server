@@ -11,7 +11,7 @@ use super::bound_connection_future::BoundConnectionFuture;
 use super::errors::{Error, NormalizeError};
 use super::finite_service::FiniteService;
 
-pub struct ListeningAsyncServer<S, P>
+pub struct ListeningServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService,
@@ -23,7 +23,7 @@ where
     >,
 }
 
-impl<S, P> ListeningAsyncServer<S, P>
+impl<S, P> ListeningServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
@@ -40,13 +40,13 @@ where
         let service = service_factory.new_service();
         let connection = BoundConnectionFuture::from(listener, protocol);
 
-        ListeningAsyncServer {
+        ListeningServer {
             connection_and_service: connection.join(service.normalize_error()),
         }
     }
 }
 
-impl<S, P> Future for ListeningAsyncServer<S, P>
+impl<S, P> Future for ListeningServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,

@@ -8,7 +8,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::errors::{Error, ErrorKind};
-use super::listening_async_server::ListeningAsyncServer;
+use super::listening_server::ListeningServer;
 
 pub struct StartServer<S, P> {
     address: SocketAddr,
@@ -40,16 +40,14 @@ where
         }
     }
 
-    fn start_server(&mut self) -> Poll<ListeningAsyncServer<S, P>, Error> {
+    fn start_server(&mut self) -> Poll<ListeningServer<S, P>, Error> {
         let listener = TcpListener::bind(&self.address, &self.handle)?;
         let protocol = self.protocol.clone();
 
         if let Some(service_factory) = self.service_factory.take() {
-            Ok(Async::Ready(ListeningAsyncServer::new(
-                listener,
-                service_factory,
-                protocol,
-            )))
+            Ok(Async::Ready(
+                ListeningServer::new(listener, service_factory, protocol),
+            ))
         } else {
             Err(ErrorKind::AttemptToStartServerTwice.into())
         }
@@ -65,7 +63,7 @@ where
         + From<<P::Transport as Sink>::SinkError>
         + From<P::Error>,
 {
-    type Item = ListeningAsyncServer<S, P>;
+    type Item = ListeningServer<S, P>;
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
