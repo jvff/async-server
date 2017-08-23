@@ -1,3 +1,5 @@
+use std::cmp::{Ordering, PartialOrd};
+
 use futures::{Async, AsyncSink, Poll, StartSend};
 
 use super::errors::{Error, ErrorKind};
@@ -35,14 +37,7 @@ impl Status {
     }
 
     fn is_more_severe_than(&self, other: &Status) -> bool {
-        match (self, other) {
-            (_, &Status::Error(_)) => false,
-            (&Status::Error(_), _) => true,
-            (_, &Status::WouldBlock) => false,
-            (&Status::WouldBlock, _) => true,
-            (_, &Status::Finished) => false,
-            _ => true,
-        }
+        *self > *other
     }
 }
 
@@ -88,5 +83,36 @@ where
                 Err(error.into())
             }
         }
+    }
+}
+
+impl PartialEq for Status {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (&Status::Error(_), &Status::Error(_)) => false,
+            (&Status::WouldBlock, &Status::WouldBlock) => true,
+            (&Status::Finished, &Status::Finished) => true,
+            (&Status::Active, &Status::Active) => true,
+            _ => false,
+        }
+    }
+}
+
+impl PartialOrd for Status {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let ordering = if self.eq(other) {
+            Ordering::Equal
+        } else {
+            match (self, other) {
+                (&Status::Error(_), _) => Ordering::Greater,
+                (_, &Status::Error(_)) => Ordering::Less,
+                (&Status::WouldBlock, _) => Ordering::Greater,
+                (_, &Status::WouldBlock) => Ordering::Less,
+                (&Status::Finished, _) => Ordering::Greater,
+                _ => Ordering::Less,
+            }
+        };
+
+        Some(ordering)
     }
 }
