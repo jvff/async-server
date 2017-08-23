@@ -18,6 +18,14 @@ impl Status {
         }
     }
 
+    pub fn is_running(&self) -> bool {
+        match *self {
+            Status::Active => true,
+            Status::WouldBlock => true,
+            _ => false,
+        }
+    }
+
     pub fn update<T: Into<Status>>(&mut self, status_update: T) {
         let status_update = status_update.into();
 

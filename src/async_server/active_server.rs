@@ -36,7 +36,7 @@ where
     }
 
     fn try_to_get_new_request(&mut self) -> &mut Self {
-        if self.status.is_active() {
+        if self.status.is_running() {
             let new_request = self.connection.poll();
 
             if let Ok(Async::Ready(Some(request))) = new_request {
@@ -50,7 +50,7 @@ where
     }
 
     fn try_to_get_new_response(&mut self) -> &mut Self {
-        if self.status.is_active() {
+        if self.status.is_running() {
             let maybe_response = self.live_requests.poll();
 
             if let Ok(Async::Ready(Some(response))) = maybe_response {
@@ -64,7 +64,7 @@ where
     }
 
     fn try_to_send_responses(&mut self) -> &mut Self {
-        if self.status.is_active() {
+        if self.status.is_running() {
             while let Some(response) = self.live_responses.pop_front() {
                 match self.connection.start_send(response) {
                     Ok(AsyncSink::Ready) => (),
@@ -86,7 +86,7 @@ where
     }
 
     fn try_to_flush_responses(&mut self) -> &mut Self {
-        if self.status.is_active() {
+        if self.status.is_running() {
             self.status.update(self.connection.poll_complete());
         }
 
@@ -94,16 +94,18 @@ where
     }
 
     fn check_if_finished(&mut self) {
-        if self.status.is_active() {
+        if self.status.is_running() {
             let no_pending_requests = self.live_requests.is_empty();
             let no_pending_responses = self.live_responses.is_empty();
 
             if no_pending_requests && no_pending_responses {
-                self.status = match self.service.has_finished() {
+                let service_status = match self.service.has_finished() {
                     Ok(true) => Status::Finished,
                     Ok(false) => Status::Active,
                     Err(error) => Status::Error(error.into()),
-                }
+                };
+
+                self.status.update(service_status);
             }
         }
     }
