@@ -35,6 +35,13 @@ where
         }
     }
 
+    pub fn shutdown(&mut self) -> Poll<(), Error> {
+        match self.service.force_stop() {
+            Ok(()) => Ok(Async::Ready(())),
+            Err(error) => Err(error.into()),
+        }
+    }
+
     fn try_to_get_new_request(&mut self) -> &mut Self {
         if self.status.is_running() {
             let new_request = self.connection.poll();
