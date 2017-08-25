@@ -45,6 +45,42 @@ where
     }
 }
 
+impl<S, P> From<StartServer<S, P>> for AsyncServer<S, P>
+where
+    S: NewService<Request = P::Request, Response = P::Response>,
+    P: ServerProto<TcpStream>,
+    S::Instance: FiniteService,
+    Error: From<P::Error> + From<S::Error>,
+{
+    fn from(start_server: StartServer<S, P>) -> Self {
+        AsyncServer::Binding(start_server)
+    }
+}
+
+impl<S, P> From<ListeningServer<S, P>> for AsyncServer<S, P>
+where
+    S: NewService<Request = P::Request, Response = P::Response>,
+    P: ServerProto<TcpStream>,
+    S::Instance: FiniteService,
+    Error: From<P::Error> + From<S::Error>,
+{
+    fn from(listening_server: ListeningServer<S, P>) -> Self {
+        AsyncServer::Listening(listening_server)
+    }
+}
+
+impl<S, P> From<ActiveServer<S::Instance, P::Transport>> for AsyncServer<S, P>
+where
+    S: NewService<Request = P::Request, Response = P::Response>,
+    P: ServerProto<TcpStream>,
+    S::Instance: FiniteService,
+    Error: From<P::Error> + From<S::Error>,
+{
+    fn from(active_server: ActiveServer<S::Instance, P::Transport>) -> Self {
+        AsyncServer::Active(active_server)
+    }
+}
+
 impl<S, P> Future for AsyncServer<S, P>
 where
     S: NewService<Request = P::Request, Response = P::Response>,
