@@ -9,7 +9,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_server::ActiveServer;
-use super::errors::Error;
+use super::errors::{Error, ErrorKind};
 use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
 use super::start_server::StartServer;
@@ -22,8 +22,12 @@ where
     Error: From<P::Error> + From<S::Error>,
 {
     Binding(StartServer<S, P>),
+    BindCancelled(StartServer<S, P>),
     Listening(ListeningServer<S, P>),
+    ListenCancelled(ListeningServer<S, P>),
     Active(ActiveServer<S::Instance, P::Transport>),
+    Disconnecting(ActiveServer<S::Instance, P::Transport>),
+    Dead,
 }
 
 impl<S, P> AsyncServer<S, P>
@@ -42,6 +46,47 @@ where
         AsyncServer::Binding(
             StartServer::new(address, service_factory, protocol, handle),
         )
+    }
+
+    pub fn shutdown(&mut self) -> Poll<(), Error> {
+        let shutdown_result = match *self {
+            AsyncServer::Binding(ref mut handler) => handler.shutdown(),
+            AsyncServer::BindCancelled(ref mut handler) => {
+                return handler.shutdown();
+            }
+            AsyncServer::Listening(ref mut handler) => handler.shutdown(),
+            AsyncServer::ListenCancelled(ref mut handler) => {
+                return handler.shutdown();
+            }
+            AsyncServer::Active(ref mut handler) => handler.shutdown(),
+            AsyncServer::Disconnecting(ref mut handler) => {
+                return handler.shutdown();
+            }
+            AsyncServer::Dead => Ok(Async::Ready(())),
+        };
+
+        let new_state = match shutdown_result {
+            Ok(Async::NotReady) => {
+                match mem::replace(self, AsyncServer::Dead) {
+                    AsyncServer::Binding(handler) => {
+                        AsyncServer::BindCancelled(handler)
+                    }
+                    AsyncServer::Listening(handler) => {
+                        AsyncServer::ListenCancelled(handler)
+                    }
+                    AsyncServer::Active(handler) => {
+                        AsyncServer::Disconnecting(handler)
+                    }
+                    AsyncServer::Dead => AsyncServer::Dead,
+                    shutting_down_state => shutting_down_state,
+                }
+            }
+            _ => AsyncServer::Dead,
+        };
+
+        mem::replace(self, new_state);
+
+        shutdown_result
     }
 }
 
@@ -103,6 +148,10 @@ where
                 try_ready!(handler.poll());
                 None
             }
+            AsyncServer::Dead => {
+                return Err(ErrorKind::AsyncServerWasShutDown.into());
+            }
+            _ => return Err(ErrorKind::AsyncServerIsShuttingDown.into()),
         };
 
         if let Some(new_state) = maybe_new_state {
