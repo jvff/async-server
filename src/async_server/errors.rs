@@ -19,6 +19,14 @@ error_chain! {
             )
         }
 
+        IncorrectShutDownAttempt(future: String) {
+            description("incorrect attempt to shut down a completed future")
+            display(
+                "incorrect attempt to shut down a completed future: {}",
+                future,
+            )
+        }
+
         FailedToReceiveConnection {
             description("failed to receive a connection")
         }

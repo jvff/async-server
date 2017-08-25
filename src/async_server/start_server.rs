@@ -8,6 +8,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::errors::{Error, ErrorKind};
+use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
 
 pub struct StartServer<S, P> {
@@ -21,6 +22,7 @@ impl<S, P> StartServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
+    S::Instance: FiniteService,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>
@@ -37,6 +39,23 @@ where
             protocol,
             handle,
             service_factory: Some(service_factory),
+        }
+    }
+
+    pub fn shutdown(&mut self) -> Poll<(), Error> {
+        if let Some(service_factory) = self.service_factory.take() {
+            let mut service = service_factory.new_service()?;
+
+            match service.force_stop() {
+                Ok(()) => Ok(Async::Ready(())),
+                Err(error) => Err(error.into()),
+            }
+        } else {
+            Err(
+                ErrorKind::IncorrectShutDownAttempt(
+                    String::from("StartServer"),
+                ).into(),
+            )
         }
     }
 
@@ -58,6 +77,7 @@ impl<S, P> Future for StartServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
+    S::Instance: FiniteService,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>
