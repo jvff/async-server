@@ -25,6 +25,7 @@ impl<S, P> ListeningServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
+    S::Instance: FiniteService,
     Error: From<S::Error>
         + From<<P::Transport as Stream>::Error>
         + From<<P::Transport as Sink>::SinkError>
@@ -38,6 +39,25 @@ where
         ListeningServer {
             service: service_factory.new_service(),
             connection: BoundConnectionFuture::from(listener, protocol),
+        }
+    }
+
+    pub fn shutdown(&mut self) -> Poll<(), Error> {
+        if let Ok(ref mut service) = self.service {
+            match service.force_stop() {
+                Ok(()) => Ok(Async::Ready(())),
+                Err(error) => Err(error.into()),
+            }
+        } else {
+            mem::replace(
+                &mut self.service,
+                Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "attempt to shut down listening server twice",
+                )),
+            )?;
+
+            unreachable!("error should have been retrieved");
         }
     }
 }
