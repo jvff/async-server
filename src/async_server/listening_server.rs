@@ -1,14 +1,14 @@
+use std::{io, mem};
 use std::sync::{Arc, Mutex};
 
 use futures::{Async, Future, Poll, Sink, Stream};
-use futures::future::{FutureResult, Join};
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_server::ActiveServer;
 use super::bound_connection_future::BoundConnectionFuture;
-use super::errors::{Error, NormalizeError};
+use super::errors::Error;
 use super::finite_service::FiniteService;
 
 pub struct ListeningServer<S, P>
@@ -17,10 +17,8 @@ where
     S: NewService,
     Error: From<S::Error> + From<P::Error>,
 {
-    connection_and_service: Join<
-        BoundConnectionFuture<P>,
-        FutureResult<S::Instance, Error>,
-    >,
+    connection: BoundConnectionFuture<P>,
+    service: io::Result<S::Instance>,
 }
 
 impl<S, P> ListeningServer<S, P>
@@ -37,11 +35,9 @@ where
         service_factory: S,
         protocol: Arc<Mutex<P>>,
     ) -> Self {
-        let service = service_factory.new_service();
-        let connection = BoundConnectionFuture::from(listener, protocol);
-
         ListeningServer {
-            connection_and_service: connection.join(service.normalize_error()),
+            service: service_factory.new_service(),
+            connection: BoundConnectionFuture::from(listener, protocol),
         }
     }
 }
@@ -60,9 +56,15 @@ where
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        let (connection, service) =
-            try_ready!(self.connection_and_service.poll());
+        let connection = try_ready!(self.connection.poll());
+        let service = mem::replace(
+            &mut self.service,
+            Err(io::Error::new(
+                io::ErrorKind::Other,
+                "server listening state can't be polled for two connections",
+            )),
+        );
 
-        Ok(Async::Ready(ActiveServer::new(connection, service)))
+        Ok(Async::Ready(ActiveServer::new(connection, service?)))
     }
 }
