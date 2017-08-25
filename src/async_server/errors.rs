@@ -12,10 +12,7 @@ error_chain! {
     errors {
         AttemptToStartServerTwice {
             description(
-                concat!(
-                    "server can't be started twice from the same ",
-                    "AsyncServerStart future",
-                )
+                "server can't be started twice from the same ServerStart future"
             )
         }
 
