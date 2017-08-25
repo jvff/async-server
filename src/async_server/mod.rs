@@ -8,6 +8,6 @@ mod errors;
 mod start_server;
 mod status;
 
-pub use self::errors::{Error, ErrorKind};
 pub use self::async_server::AsyncServer;
+pub use self::errors::{Error, ErrorKind};
 pub use self::finite_service::FiniteService;

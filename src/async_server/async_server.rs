@@ -1,66 +1,79 @@
+use std::mem;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use futures::Future;
-use futures::future::Flatten;
+use futures::{Async, Future, Poll};
 use tokio_core::net::TcpStream;
-use tokio_core::reactor::{Core, Handle};
-use tokio_io::codec::{Decoder, Encoder};
+use tokio_core::reactor::Handle;
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
-use super::errors::{Error, Result};
+use super::active_server::ActiveServer;
+use super::errors::Error;
 use super::finite_service::FiniteService;
+use super::listening_server::ListeningServer;
 use super::start_server::StartServer;
 
-pub struct AsyncServer<S, P> {
-    address: SocketAddr,
-    service_factory: S,
-    protocol: Arc<Mutex<P>>,
+pub enum AsyncServer<S, P>
+where
+    S: NewService,
+    P: ServerProto<TcpStream>,
+    S::Instance: FiniteService,
+    Error: From<P::Error> + From<S::Error>,
+{
+    Binding(StartServer<S, P>),
+    Listening(ListeningServer<S, P>),
+    Active(ActiveServer<S::Instance, P::Transport>),
 }
 
 impl<S, P> AsyncServer<S, P>
 where
-    S: NewService,
+    S: NewService<Request = P::Request, Response = P::Response>,
+    P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
-    S::Request: 'static,
-    S::Response: 'static,
-    P: Decoder<Item = S::Request>
-        + Encoder<Item = S::Response>
-        + ServerProto<TcpStream, Request = S::Request, Response = S::Response>,
-    Error: From<<P as Decoder>::Error>
-        + From<<P as Encoder>::Error>
-        + From<<P as ServerProto<TcpStream>>::Error>
-        + From<S::Error>,
+    Error: From<P::Error> + From<S::Error>,
 {
-    pub fn new(address: SocketAddr, service_factory: S, protocol: P) -> Self {
-        Self {
-            address,
-            service_factory,
-            protocol: Arc::new(Mutex::new(protocol)),
-        }
-    }
-
-    pub fn serve(self) -> Result<()> {
-        let mut reactor = Core::new()?;
-        let handle = reactor.handle();
-        let server = self.serve_with_handle(handle);
-
-        reactor.run(server)
-    }
-
-    pub fn serve_with_handle(
-        self,
+    pub fn new(
+        address: SocketAddr,
+        service_factory: S,
+        protocol: Arc<Mutex<P>>,
         handle: Handle,
-    ) -> Flatten<Flatten<StartServer<S, P>>> {
-        self.start(handle).flatten().flatten()
+    ) -> Self {
+        AsyncServer::Binding(
+            StartServer::new(address, service_factory, protocol, handle),
+        )
     }
+}
 
-    pub fn start(self, handle: Handle) -> StartServer<S, P> {
-        let address = self.address;
-        let protocol = self.protocol;
-        let service_factory = self.service_factory;
+impl<S, P> Future for AsyncServer<S, P>
+where
+    S: NewService<Request = P::Request, Response = P::Response>,
+    P: ServerProto<TcpStream>,
+    S::Instance: FiniteService,
+    Error: From<P::Error> + From<S::Error>,
+{
+    type Item = ();
+    type Error = Error;
 
-        StartServer::new(address, service_factory, protocol, handle)
+    fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
+        let maybe_new_state = match *self {
+            AsyncServer::Binding(ref mut handler) => {
+                Some(AsyncServer::Listening(try_ready!(handler.poll())))
+            }
+            AsyncServer::Listening(ref mut handler) => {
+                Some(AsyncServer::Active(try_ready!(handler.poll())))
+            }
+            AsyncServer::Active(ref mut handler) => {
+                try_ready!(handler.poll());
+                None
+            }
+        };
+
+        if let Some(new_state) = maybe_new_state {
+            mem::replace(self, new_state);
+            self.poll()
+        } else {
+            Ok(Async::Ready(()))
+        }
     }
 }
