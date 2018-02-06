@@ -12,6 +12,10 @@ error_chain! {
             description("failed to receive a connection")
         }
 
+        FailedToBindConnection {
+            description("failed to bind the connection to receive requests")
+        }
+
         ActiveStatusHasNoPollEquivalent {
             description("active server status means processing hasn't finished")
         }

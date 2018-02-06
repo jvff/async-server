@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use futures::future;
 use futures::{Future, IntoFuture, Stream};
@@ -14,7 +15,7 @@ use super::errors::{Error, ErrorKind, Result};
 pub struct AsyncServer<S, P> {
     address: SocketAddr,
     service_factory: S,
-    protocol: P,
+    protocol: Arc<Mutex<P>>,
 }
 
 pub type ServerFuture = Box<Future<Item = (), Error = Error>>;
@@ -22,13 +23,11 @@ pub type ServerFuture = Box<Future<Item = (), Error = Error>>;
 impl<S, P> AsyncServer<S, P>
 where
     S: NewService,
-    S::Instance: 'static + Send,
+    S::Instance: 'static,
     S::Request: 'static,
-    S::Response: 'static + Send,
-    P: Clone
-        + Decoder<Item = S::Request>
+    S::Response: 'static,
+    P: Decoder<Item = S::Request>
         + Encoder<Item = S::Response>
-        + Send
         + ServerProto<TcpStream, Request = S::Request, Response = S::Response>,
     Error: From<<P as Decoder>::Error>
         + From<<P as Encoder>::Error>
@@ -38,7 +37,7 @@ where
         Self {
             address,
             service_factory,
-            protocol,
+            protocol: Arc::new(Mutex::new(protocol)),
         }
     }
 
@@ -70,13 +69,24 @@ where
                 maybe_connection.ok_or(no_connections)
             });
 
-        let service = self.service_factory.new_service().into_future();
         let protocol = self.protocol.clone();
+        let service = self.service_factory.new_service().into_future();
         let server = single_connection.and_then(move |(socket, _)| {
-            protocol
-                .bind_transport(socket)
+            let lock_error: Error = ErrorKind::FailedToBindConnection.into();
+
+            let connection =
+                protocol.lock().map_err(|_| lock_error).map(|protocol| {
+                    protocol
+                        .bind_transport(socket)
+                        .into_future()
+                        .map_err::<_, Error>(|error| error.into())
+                });
+
+            connection
+                .map_err::<Error, _>(|error| error.into())
                 .into_future()
-                .join(service)
+                .flatten()
+                .join(service.map_err(|error| error.into()))
                 .map_err(|error| error.into())
                 .and_then(|(connection, service)| {
                     ActiveAsyncServer::new(connection, service)
