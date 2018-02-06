@@ -30,13 +30,7 @@ pub struct AsyncServer<S, P> {
     protocol: P,
 }
 
-pub type ServerFuture<S: NewService, P: ServerProto<TcpStream>> =
-    Box<
-        Future<
-            Item = ActiveAsyncServer<S::Instance, P::Transport>,
-            Error = Error,
-        >,
-    >;
+pub type ServerFuture = Box<Future<Item = (), Error = Error>>;
 
 impl<S, P> AsyncServer<S, P>
 where
@@ -61,24 +55,21 @@ where
         }
     }
 
-    pub fn serve(&mut self) -> ServerFuture<S, P> {
+    pub fn serve(&mut self) -> ServerFuture {
         match Core::new() {
             Ok(reactor) => self.serve_with_handle(reactor.handle()),
             Err(error) => Box::new(future::err(error.into()))
         }
     }
 
-    pub fn serve_with_handle(&mut self, handle: Handle) -> ServerFuture<S, P> {
+    pub fn serve_with_handle(&mut self, handle: Handle) -> ServerFuture {
         match TcpListener::bind(&self.address, &handle) {
             Ok(listener) => self.serve_on_listener(listener),
             Err(error) => Box::new(future::err(error.into()))
         }
     }
 
-    fn serve_on_listener(
-        &mut self,
-        listener: TcpListener,
-    ) -> ServerFuture<S, P> {
+    fn serve_on_listener(&mut self, listener: TcpListener) -> ServerFuture {
         let connections = listener.incoming();
         let single_connection = connections.take(1)
             .into_future()
@@ -97,7 +88,7 @@ where
                 .into_future()
                 .join(service)
                 .map_err(|error| error.into())
-                .map(|(connection, service)| {
+                .and_then(|(connection, service)| {
                     ActiveAsyncServer::new(connection, service)
                 })
         });
