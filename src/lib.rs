@@ -20,3 +20,5 @@ mod status;
 pub use async_server::AsyncServer;
 pub use errors::{Error, ErrorKind};
 pub use finite_service::FiniteService;
+pub use listening_server::ListeningServer;
+pub use start_server::StartServer;
