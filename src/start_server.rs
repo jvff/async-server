@@ -70,7 +70,7 @@ where
                 ListeningServer::new(listener, service_factory, protocol),
             ))
         } else {
-            Err(Error::from(ErrorKind::AttemptToStartServerTwice).into())
+            Err(AsyncServerError::AttemptToStartServerTwice)
         }
     }
 }

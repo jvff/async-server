@@ -10,6 +10,9 @@ use super::errors::ErrorKind as OldErrorKind;
 
 #[derive(Debug, Fail)]
 pub enum AsyncServerError<S, P> {
+    #[fail(display = "can't start server using the same future more than once")]
+    AttemptToStartServerTwice,
+
     #[fail(display = "failed to bind connection into protocol transport")]
     BindError(#[cause] BindConnectionError<P>),
 
