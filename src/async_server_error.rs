@@ -18,6 +18,9 @@ pub enum AsyncServerError<S, P> {
     #[fail(display = "failed to get a new request from the protocol transport")]
     NewRequestError(#[cause] P),
 
+    #[fail(display = "failed to get a response from the service")]
+    NewResponseError(#[cause] S),
+
     #[fail(display = "AsyncServer was shut down")]
     ServerWasShutDown,
 

@@ -69,7 +69,9 @@ where
             if let Ok(Async::Ready(Some(response))) = maybe_response {
                 self.live_responses.push_back(response);
             } else {
-                self.status.update(maybe_response.map_err(Error::from));
+                self.status.update(
+                    maybe_response.map_err(AsyncServerError::NewResponseError),
+                );
             }
         }
 
