@@ -10,7 +10,6 @@ use tokio_service::NewService;
 
 use super::active_server::ActiveServer;
 use super::async_server_error::AsyncServerError;
-use super::errors::Error;
 use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
 use super::start_server::StartServer;
@@ -21,7 +20,6 @@ where
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
     P::Transport: Stream<Item = S::Request>,
-    Error: From<P::Error> + From<S::Error>,
 {
     Binding(StartServer<S, P>),
     BindCancelled(StartServer<S, P>),
@@ -37,7 +35,6 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
-    Error: From<P::Error> + From<S::Error>,
 {
     pub fn new(
         address: SocketAddr,
@@ -99,7 +96,6 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
-    Error: From<P::Error> + From<S::Error>,
 {
     fn from(start_server: StartServer<S, P>) -> Self {
         AsyncServer::Binding(start_server)
@@ -111,7 +107,6 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
-    Error: From<P::Error> + From<S::Error>,
 {
     fn from(listening_server: ListeningServer<S, P>) -> Self {
         AsyncServer::Listening(listening_server)
@@ -123,7 +118,6 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
-    Error: From<P::Error> + From<S::Error>,
 {
     fn from(active_server: ActiveServer<S::Instance, P::Transport>) -> Self {
         AsyncServer::Active(active_server)
@@ -135,7 +129,6 @@ where
     S: NewService<Request = P::Request, Response = P::Response>,
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
-    Error: From<P::Error> + From<S::Error>,
 {
     type Item = ();
     type Error = AsyncServerError<S::Error, P::Error>;
