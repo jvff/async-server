@@ -62,10 +62,10 @@ where
     }
 
     fn start_server(&mut self) -> Poll<ListeningServer<S, P>, Error> {
-        let listener = TcpListener::bind(&self.address, &self.handle)?;
-        let protocol = self.protocol.clone();
-
         if let Some(service_factory) = self.service_factory.take() {
+            let listener = TcpListener::bind(&self.address, &self.handle)?;
+            let protocol = self.protocol.clone();
+
             Ok(Async::Ready(
                 ListeningServer::new(listener, service_factory, protocol),
             ))
@@ -89,10 +89,6 @@ where
     type Error = Error;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
-        if self.service_factory.is_some() {
-            self.start_server()
-        } else {
-            Err(ErrorKind::AttemptToStartServerTwice.into())
-        }
+        self.start_server()
     }
 }
