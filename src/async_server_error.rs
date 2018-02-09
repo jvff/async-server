@@ -9,6 +9,9 @@ use super::errors::ErrorKind as OldErrorKind;
 
 #[derive(Debug, Fail)]
 pub enum AsyncServerError<S> {
+    #[fail(display = "ListeningServer can't shutdown server after a connection is made")]
+    IncorrectShutdownInListeningServer,
+
     #[fail(display = "StartServer can't shutdown server after it started")]
     IncorrectShutdownInStartServer,
 

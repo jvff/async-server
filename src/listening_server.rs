@@ -52,15 +52,7 @@ where
                 }
             }
         } else {
-            mem::replace(
-                &mut self.service,
-                Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "attempt to shut down listening server twice",
-                )),
-            ).map_err(Error::from)?;
-
-            unreachable!("error should have been retrieved");
+            Err(AsyncServerError::IncorrectShutdownInListeningServer)
         }
     }
 }
