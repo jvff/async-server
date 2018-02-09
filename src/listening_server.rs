@@ -1,7 +1,7 @@
 use std::{io, mem};
 use std::sync::{Arc, Mutex};
 
-use futures::{Async, Future, Poll, Sink, Stream};
+use futures::{Async, Future, Poll};
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
@@ -16,7 +16,6 @@ pub struct ListeningServer<S, P>
 where
     P: ServerProto<TcpStream>,
     S: NewService,
-    Error: From<S::Error> + From<P::Error>,
 {
     connection: BoundConnectionFuture<P>,
     service: io::Result<S::Instance>,
@@ -27,10 +26,6 @@ where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
     S::Instance: FiniteService,
-    Error: From<S::Error>
-        + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>
-        + From<P::Error>,
 {
     pub fn new(
         listener: TcpListener,
@@ -64,18 +59,16 @@ where
     P: ServerProto<TcpStream>,
     S: NewService<Request = P::Request, Response = P::Response>,
     S::Instance: FiniteService,
-    Error: From<S::Error>
-        + From<<P::Transport as Stream>::Error>
-        + From<<P::Transport as Sink>::SinkError>
-        + From<P::Error>,
 {
     type Item = ActiveServer<S::Instance, P::Transport>;
-    type Error = Error;
+    type Error = AsyncServerError<S::Error, P::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let connection = try_ready!(
             self.connection.poll().map_err(|_| {
-                Error::from(ErrorKind::FailedToReceiveConnection)
+                AsyncServerError::from(
+                    Error::from(ErrorKind::FailedToReceiveConnection),
+                )
             })
         );
 
@@ -85,7 +78,7 @@ where
                 io::ErrorKind::Other,
                 "server listening state can't be polled for two connections",
             )),
-        );
+        ).map_err(Error::from);
 
         Ok(Async::Ready(ActiveServer::new(connection, service?)))
     }
