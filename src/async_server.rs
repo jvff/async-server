@@ -57,11 +57,9 @@ where
             AsyncServer::BindCancelled(ref mut handler) => {
                 return handler.shutdown().map_err(AsyncServerError::from);
             }
-            AsyncServer::Listening(ref mut handler) => {
-                handler.shutdown().map_err(AsyncServerError::from)
-            }
+            AsyncServer::Listening(ref mut handler) => handler.shutdown(),
             AsyncServer::ListenCancelled(ref mut handler) => {
-                return handler.shutdown().map_err(AsyncServerError::from);
+                return handler.shutdown();
             }
             AsyncServer::Active(ref mut handler) => handler.shutdown(),
             AsyncServer::Disconnecting(ref mut handler) => {

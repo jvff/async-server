@@ -7,6 +7,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_server::ActiveServer;
+use super::async_server_error::AsyncServerError;
 use super::bound_connection_future::BoundConnectionFuture;
 use super::errors::Error;
 use super::finite_service::FiniteService;
@@ -42,11 +43,13 @@ where
         }
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), Error> {
+    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
         if let Ok(ref mut service) = self.service {
             match service.force_stop() {
                 Ok(()) => Ok(Async::Ready(())),
-                Err(error) => Err(error.into()),
+                Err(error) => {
+                    Err(AsyncServerError::ServiceShutdownError(error))
+                }
             }
         } else {
             mem::replace(
@@ -55,7 +58,7 @@ where
                     io::ErrorKind::Other,
                     "attempt to shut down listening server twice",
                 )),
-            )?;
+            ).map_err(Error::from)?;
 
             unreachable!("error should have been retrieved");
         }
