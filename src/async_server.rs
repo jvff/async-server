@@ -9,6 +9,7 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::active_server::ActiveServer;
+use super::async_server_error::AsyncServerError;
 use super::errors::{Error, ErrorKind};
 use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
@@ -134,7 +135,7 @@ where
     Error: From<P::Error> + From<S::Error>,
 {
     type Item = ();
-    type Error = Error;
+    type Error = AsyncServerError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let maybe_new_state = match *self {
