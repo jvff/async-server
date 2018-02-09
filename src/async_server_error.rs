@@ -8,6 +8,9 @@ use super::errors::ErrorKind as OldErrorKind;
 
 #[derive(Debug, Fail)]
 pub enum AsyncServerError {
+    #[fail(display = "AsyncServer was shut down")]
+    ServerWasShutDown,
+
     #[fail(display = "old format error")]
     OldError(#[cause] OldErrorWrapper),
 }

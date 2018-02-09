@@ -150,7 +150,7 @@ where
                 None
             }
             AsyncServer::Dead => {
-                return Err(ErrorKind::AsyncServerWasShutDown.into());
+                return Err(AsyncServerError::ServerWasShutDown);
             }
             _ => return Err(ErrorKind::AsyncServerIsShuttingDown.into()),
         };

@@ -16,10 +16,6 @@ error_chain! {
             )
         }
 
-        AsyncServerWasShutDown {
-            description("AsyncServer was shut down")
-        }
-
         AsyncServerIsShuttingDown {
             description("AsyncServer is shutting down")
         }
