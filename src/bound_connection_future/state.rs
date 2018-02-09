@@ -5,8 +5,8 @@ use futures::{Async, Future, IntoFuture, Poll};
 use tokio_core::net::TcpStream;
 use tokio_proto::pipeline::ServerProto;
 
+use super::bind_connection_error::BindConnectionError;
 use super::super::connection_future::ConnectionFuture;
-use super::super::errors::{Error, ErrorKind};
 
 pub enum State<P>
 where
@@ -21,7 +21,6 @@ where
 impl<P> State<P>
 where
     P: ServerProto<TcpStream>,
-    Error: From<P::Error>,
 {
     pub fn start_with(
         connection: ConnectionFuture,
@@ -32,7 +31,9 @@ where
         State::WaitingForConnection(state_data)
     }
 
-    pub fn advance(&mut self) -> Poll<P::Transport, Error> {
+    pub fn advance(
+        &mut self,
+    ) -> Poll<P::Transport, BindConnectionError<P::Error>> {
         let state = mem::replace(self, State::Processing);
 
         let (poll_result, new_state) = state.advance_to_new_state();
@@ -42,7 +43,9 @@ where
         poll_result
     }
 
-    fn advance_to_new_state(self) -> (Poll<P::Transport, Error>, Self) {
+    fn advance_to_new_state(
+        self,
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, Self) {
         match self {
             State::WaitingForConnection(handler) => handler.advance(),
             State::WaitingForBindResult(handler) => handler.advance(),
@@ -60,7 +63,6 @@ pub struct WaitForConnection<P> {
 impl<P> WaitForConnection<P>
 where
     P: ServerProto<TcpStream>,
-    Error: From<P::Error>,
 {
     pub fn from(connection: ConnectionFuture, protocol: Arc<Mutex<P>>) -> Self {
         Self {
@@ -69,14 +71,17 @@ where
         }
     }
 
-    fn advance(mut self) -> (Poll<P::Transport, Error>, State<P>) {
+    fn advance(
+        mut self,
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, State<P>) {
         match self.connection.poll() {
             Ok(Async::Ready((socket, _))) => self.bind_connection(socket),
             Ok(Async::NotReady) => (Ok(Async::NotReady), self.same_state()),
-            Err(error) => {
-                let error_kind = ErrorKind::ConnectionError(error);
+            Err(connection_error) => {
+                let error =
+                    BindConnectionError::NoConnectionToBind(connection_error);
 
-                (Err(error_kind.into()), self.same_state())
+                (Err(error), self.same_state())
             }
         }
     }
@@ -84,7 +89,7 @@ where
     fn bind_connection(
         self,
         socket: TcpStream,
-    ) -> (Poll<P::Transport, Error>, State<P>) {
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, State<P>) {
         let result = if let Ok(protocol) = self.protocol.lock() {
             Some(WaitForBindResult::advance_with(protocol, socket))
         } else {
@@ -98,10 +103,10 @@ where
         }
     }
 
-    fn bind_connection_failure(self) -> (Poll<P::Transport, Error>, State<P>) {
-        let bind_error: Error = ErrorKind::FailedToBindConnection.into();
-
-        (Err(bind_error), self.same_state())
+    fn bind_connection_failure(
+        self,
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, State<P>) {
+        (Err(BindConnectionError::ProtocolLockError), self.same_state())
     }
 
     fn same_state(self) -> State<P> {
@@ -119,30 +124,33 @@ where
 impl<P> WaitForBindResult<P>
 where
     P: ServerProto<TcpStream>,
-    Error: From<P::Error>,
 {
     fn advance_with(
         protocol: MutexGuard<P>,
         socket: TcpStream,
-    ) -> (Poll<P::Transport, Error>, State<P>) {
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, State<P>) {
         let bind_result = protocol.bind_transport(socket).into_future();
         let bind_future = WaitForBindResult { bind_result };
 
         bind_future.advance()
     }
 
-    fn advance(mut self) -> (Poll<P::Transport, Error>, State<P>) {
+    fn advance(
+        mut self,
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, State<P>) {
         match self.bind_result.poll() {
             Ok(Async::Ready(bound_connection)) => self.finish(bound_connection),
             Ok(Async::NotReady) => (Ok(Async::NotReady), self.same_state()),
-            Err(error) => (Err(error.into()), self.same_state()),
+            Err(error) => {
+                (Err(BindConnectionError::BindError(error)), self.same_state())
+            }
         }
     }
 
     fn finish(
         self,
         connection: P::Transport,
-    ) -> (Poll<P::Transport, Error>, State<P>) {
+    ) -> (Poll<P::Transport, BindConnectionError<P::Error>>, State<P>) {
         (Ok(Async::Ready(connection)), State::Finished)
     }
 

@@ -4,9 +4,9 @@ use futures::{Future, Poll};
 use tokio_core::net::{TcpListener, TcpStream};
 use tokio_proto::pipeline::ServerProto;
 
+use super::bind_connection_error::BindConnectionError;
 use super::state::State;
 use super::super::connection_future::ConnectionFuture;
-use super::super::errors::Error;
 
 pub struct BoundConnectionFuture<P>
 where
@@ -18,7 +18,6 @@ where
 impl<P> BoundConnectionFuture<P>
 where
     P: ServerProto<TcpStream>,
-    Error: From<P::Error>,
 {
     pub fn from(listener: TcpListener, protocol: Arc<Mutex<P>>) -> Self {
         let connection = ConnectionFuture::from(listener);
@@ -32,10 +31,9 @@ where
 impl<P> Future for BoundConnectionFuture<P>
 where
     P: ServerProto<TcpStream>,
-    Error: From<P::Error>,
 {
     type Item = P::Transport;
-    type Error = Error;
+    type Error = BindConnectionError<P::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         self.state.advance()
