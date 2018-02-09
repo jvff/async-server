@@ -121,7 +121,11 @@ where
                 let service_status = match self.service.has_finished() {
                     Ok(true) => Status::Finished,
                     Ok(false) => Status::Active,
-                    Err(error) => Status::Error(Error::from(error).into()),
+                    Err(error) => {
+                        Status::Error(
+                            AsyncServerError::ServiceFinishedCheckError(error),
+                        )
+                    }
                 };
 
                 self.status.update(service_status);

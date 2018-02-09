@@ -33,6 +33,9 @@ pub enum AsyncServerError<S, P> {
     #[fail(display = "service creation error")]
     ServiceCreationError(#[cause] io::Error),
 
+    #[fail(display = "service failed when asked if it had finished")]
+    ServiceFinishedCheckError(#[cause] S),
+
     #[fail(display = "service error")]
     ServiceShutdownError(#[cause] S),
 
