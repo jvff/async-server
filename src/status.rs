@@ -2,8 +2,6 @@ use std::cmp::{Ordering, PartialOrd};
 
 use futures::{Async, AsyncSink, Poll, StartSend};
 
-use super::errors::{Error, ErrorKind};
-
 #[derive(Debug)]
 pub enum Status<E> {
     Active,
@@ -69,7 +67,7 @@ where
 
 impl<E, F> Into<Poll<(), F>> for Status<E>
 where
-    F: From<E> + From<Error>,
+    F: From<E>,
 {
     fn into(self) -> Poll<(), F> {
         match self {
@@ -77,10 +75,7 @@ where
             Status::WouldBlock => Ok(Async::NotReady),
             Status::Error(error) => Err(error.into()).into(),
             Status::Active => {
-                let error_kind = ErrorKind::ActiveStatusHasNoPollEquivalent;
-                let error: Error = error_kind.into();
-
-                Err(error.into())
+                unreachable!("ActiveServer shouldn't park while it is active");
             }
         }
     }
