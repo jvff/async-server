@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::fmt;
 use std::fmt::{Display, Formatter};
+use std::io;
 use std::sync::Mutex;
 
 use super::errors::Error as OldError;
@@ -10,6 +11,9 @@ use super::errors::ErrorKind as OldErrorKind;
 pub enum AsyncServerError<S> {
     #[fail(display = "AsyncServer was shut down")]
     ServerWasShutDown,
+
+    #[fail(display = "service creation error")]
+    ServiceCreationError(#[cause] io::Error),
 
     #[fail(display = "service error")]
     ServiceShutdownError(#[cause] S),

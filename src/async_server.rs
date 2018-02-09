@@ -51,11 +51,9 @@ where
 
     pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
         let shutdown_result = match *self {
-            AsyncServer::Binding(ref mut handler) => {
-                handler.shutdown().map_err(AsyncServerError::from)
-            }
+            AsyncServer::Binding(ref mut handler) => handler.shutdown(),
             AsyncServer::BindCancelled(ref mut handler) => {
-                return handler.shutdown().map_err(AsyncServerError::from);
+                return handler.shutdown();
             }
             AsyncServer::Listening(ref mut handler) => handler.shutdown(),
             AsyncServer::ListenCancelled(ref mut handler) => {

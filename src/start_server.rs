@@ -7,6 +7,7 @@ use tokio_core::reactor::Handle;
 use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
+use super::async_server_error::AsyncServerError;
 use super::errors::{Error, ErrorKind};
 use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
@@ -42,13 +43,16 @@ where
         }
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), Error> {
+    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
         if let Some(service_factory) = self.service_factory.take() {
-            let mut service = service_factory.new_service()?;
+            let mut service = service_factory.new_service()
+                .map_err(AsyncServerError::ServiceCreationError)?;
 
             match service.force_stop() {
                 Ok(()) => Ok(Async::Ready(())),
-                Err(error) => Err(error.into()),
+                Err(error) => {
+                    Err(AsyncServerError::ServiceShutdownError(error))
+                }
             }
         } else {
             Err(
