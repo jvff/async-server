@@ -9,7 +9,7 @@ use tokio_service::NewService;
 use super::active_server::ActiveServer;
 use super::async_server_error::AsyncServerError;
 use super::bound_connection_future::BoundConnectionFuture;
-use super::errors::{Error, ErrorKind};
+use super::errors::Error;
 use super::finite_service::FiniteService;
 
 pub struct ListeningServer<S, P>
@@ -65,11 +65,7 @@ where
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let connection = try_ready!(
-            self.connection.poll().map_err(|_| {
-                AsyncServerError::from(
-                    Error::from(ErrorKind::FailedToReceiveConnection),
-                )
-            })
+            self.connection.poll().map_err(AsyncServerError::BindError)
         );
 
         let service = mem::replace(

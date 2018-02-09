@@ -4,11 +4,15 @@ use std::fmt::{Display, Formatter};
 use std::io;
 use std::sync::Mutex;
 
+use super::bound_connection_future::BindConnectionError;
 use super::errors::Error as OldError;
 use super::errors::ErrorKind as OldErrorKind;
 
 #[derive(Debug, Fail)]
 pub enum AsyncServerError<S, P> {
+    #[fail(display = "failed to bind connection into protocol transport")]
+    BindError(#[cause] BindConnectionError<P>),
+
     #[fail(display = "failed to flush responses in protocol transport")]
     FlushResponsesError(#[cause] P),
 
