@@ -73,7 +73,11 @@ where
         match self.connection.poll() {
             Ok(Async::Ready((socket, _))) => self.bind_connection(socket),
             Ok(Async::NotReady) => (Ok(Async::NotReady), self.same_state()),
-            Err(error) => (Err(error), self.same_state()),
+            Err(error) => {
+                let error_kind = ErrorKind::ConnectionError(error);
+
+                (Err(error_kind.into()), self.same_state())
+            }
         }
     }
 

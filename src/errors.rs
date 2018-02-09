@@ -3,6 +3,8 @@ use std::net::AddrParseError;
 
 use futures::{Future, Poll, Stream};
 
+use super::connection_error::ConnectionError;
+
 error_chain! {
     foreign_links {
         Io(io::Error);
@@ -14,6 +16,11 @@ error_chain! {
             description(
                 "server can't be started twice from the same ServerStart future"
             )
+        }
+
+        ConnectionError(error: ConnectionError) {
+            description("failed to receive a connection")
+            display("failed to receive a connection: {}", error)
         }
 
         IncorrectShutDownAttempt(future: String) {
