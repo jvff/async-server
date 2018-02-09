@@ -2,7 +2,7 @@ use std::mem;
 use std::net::SocketAddr;
 use std::sync::{Arc, Mutex};
 
-use futures::{Async, Future, Poll};
+use futures::{Async, Future, Poll, Stream};
 use tokio_core::net::TcpStream;
 use tokio_core::reactor::Handle;
 use tokio_proto::pipeline::ServerProto;
@@ -17,9 +17,10 @@ use super::start_server::StartServer;
 
 pub enum AsyncServer<S, P>
 where
-    S: NewService,
+    S: NewService<Request = P::Request>,
     P: ServerProto<TcpStream>,
     S::Instance: FiniteService,
+    P::Transport: Stream<Item = S::Request>,
     Error: From<P::Error> + From<S::Error>,
 {
     Binding(StartServer<S, P>),
@@ -49,7 +50,9 @@ where
         )
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
+    pub fn shutdown(
+        &mut self,
+    ) -> Poll<(), AsyncServerError<S::Error, P::Error>> {
         let shutdown_result = match *self {
             AsyncServer::Binding(ref mut handler) => handler.shutdown(),
             AsyncServer::BindCancelled(ref mut handler) => {
@@ -135,7 +138,7 @@ where
     Error: From<P::Error> + From<S::Error>,
 {
     type Item = ();
-    type Error = AsyncServerError<S::Error>;
+    type Error = AsyncServerError<S::Error, P::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let maybe_new_state = match *self {

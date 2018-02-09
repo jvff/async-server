@@ -43,7 +43,9 @@ where
         }
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
+    pub fn shutdown(
+        &mut self,
+    ) -> Poll<(), AsyncServerError<S::Error, P::Error>> {
         if let Ok(ref mut service) = self.service {
             match service.force_stop() {
                 Ok(()) => Ok(Async::Ready(())),

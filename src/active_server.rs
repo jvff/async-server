@@ -12,12 +12,13 @@ use super::status::Status;
 pub struct ActiveServer<S, T>
 where
     S: FiniteService,
+    T: Stream<Item = S::Request>,
 {
     connection: T,
     service: S,
     live_requests: FuturesUnordered<S::Future>,
     live_responses: VecDeque<S::Response>,
-    status: Status<AsyncServerError<S::Error>>,
+    status: Status<AsyncServerError<S::Error, T::Error>>,
 }
 
 impl<S, T> ActiveServer<S, T>
@@ -36,7 +37,9 @@ where
         }
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
+    pub fn shutdown(
+        &mut self,
+    ) -> Poll<(), AsyncServerError<S::Error, T::Error>> {
         match self.service.force_stop() {
             Ok(()) => Ok(Async::Ready(())),
             Err(error) => Err(AsyncServerError::ServiceShutdownError(error)),
@@ -50,7 +53,9 @@ where
             if let Ok(Async::Ready(Some(request))) = new_request {
                 self.live_requests.push(self.service.call(request));
             } else {
-                self.status.update(new_request.map_err(Error::from));
+                self.status.update(
+                    new_request.map_err(AsyncServerError::NewRequestError),
+                );
             }
         }
 
@@ -115,7 +120,9 @@ where
         }
     }
 
-    fn poll_status(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
+    fn poll_status(
+        &mut self,
+    ) -> Poll<(), AsyncServerError<S::Error, T::Error>> {
         let resulting_status = mem::replace(&mut self.status, Status::Active);
 
         resulting_status.into()
@@ -129,7 +136,7 @@ where
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     type Item = ();
-    type Error = AsyncServerError<S::Error>;
+    type Error = AsyncServerError<S::Error, T::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         while self.status.is_active() {

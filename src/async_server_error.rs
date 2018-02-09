@@ -8,12 +8,15 @@ use super::errors::Error as OldError;
 use super::errors::ErrorKind as OldErrorKind;
 
 #[derive(Debug, Fail)]
-pub enum AsyncServerError<S> {
+pub enum AsyncServerError<S, P> {
     #[fail(display = "ListeningServer can't shutdown server after a connection is made")]
     IncorrectShutdownInListeningServer,
 
     #[fail(display = "StartServer can't shutdown server after it started")]
     IncorrectShutdownInStartServer,
+
+    #[fail(display = "failed to get a new request from the protocol transport")]
+    NewRequestError(#[cause] P),
 
     #[fail(display = "AsyncServer was shut down")]
     ServerWasShutDown,
@@ -31,7 +34,7 @@ pub enum AsyncServerError<S> {
     OldError(#[cause] OldErrorWrapper),
 }
 
-impl<S> From<OldError> for AsyncServerError<S> {
+impl<S, P> From<OldError> for AsyncServerError<S, P> {
     fn from(error: OldError) -> Self {
         let wrapped_error = OldErrorWrapper(Mutex::new(error));
 
@@ -39,7 +42,7 @@ impl<S> From<OldError> for AsyncServerError<S> {
     }
 }
 
-impl<S> From<OldErrorKind> for AsyncServerError<S> {
+impl<S, P> From<OldErrorKind> for AsyncServerError<S, P> {
     fn from(error_kind: OldErrorKind) -> Self {
         OldError::from(error_kind).into()
     }

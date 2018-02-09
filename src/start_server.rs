@@ -43,7 +43,9 @@ where
         }
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
+    pub fn shutdown(
+        &mut self,
+    ) -> Poll<(), AsyncServerError<S::Error, P::Error>> {
         if let Some(service_factory) = self.service_factory.take() {
             let mut service = service_factory.new_service()
                 .map_err(AsyncServerError::ServiceCreationError)?;
