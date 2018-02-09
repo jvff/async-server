@@ -1,5 +1,3 @@
-#[macro_use]
-extern crate error_chain;
 extern crate failure;
 #[macro_use]
 extern crate failure_derive;
@@ -16,14 +14,12 @@ mod async_server_error;
 mod bound_connection_future;
 mod connection_error;
 mod connection_future;
-mod errors;
 mod finite_service;
 mod listening_server;
 mod start_server;
 mod status;
 
 pub use async_server::AsyncServer;
-pub use errors::{Error, ErrorKind};
 pub use finite_service::FiniteService;
 pub use listening_server::ListeningServer;
 pub use start_server::StartServer;
