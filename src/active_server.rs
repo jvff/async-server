@@ -5,7 +5,6 @@ use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use futures::stream::FuturesUnordered;
 
 use super::async_server_error::AsyncServerError;
-use super::errors::Error;
 use super::finite_service::FiniteService;
 use super::status::Status;
 
@@ -26,7 +25,6 @@ where
     S: FiniteService,
     T: Sink<SinkItem = S::Response, SinkError = E>
         + Stream<Item = S::Request, Error = E>,
-    Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     pub fn new(connection: T, service: S) -> Self {
         Self {
@@ -147,7 +145,6 @@ where
     S: FiniteService,
     T: Sink<SinkItem = S::Response, SinkError = E>
         + Stream<Item = S::Request, Error = E>,
-    Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     type Item = ();
     type Error = AsyncServerError<S::Error, T::Error>;
