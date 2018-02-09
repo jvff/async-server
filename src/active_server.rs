@@ -103,7 +103,9 @@ where
     fn try_to_flush_responses(&mut self) -> &mut Self {
         if self.status.is_running() {
             self.status.update(
-                self.connection.poll_complete().map_err(Error::from),
+                self.connection
+                    .poll_complete()
+                    .map_err(AsyncServerError::FlushResponsesError),
             );
         }
 
