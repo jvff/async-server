@@ -21,6 +21,9 @@ pub enum AsyncServerError<S, P> {
     #[fail(display = "failed to get a response from the service")]
     NewResponseError(#[cause] S),
 
+    #[fail(display = "failed to send response through protocol transport")]
+    SendResponseError(#[cause] P),
+
     #[fail(display = "AsyncServer was shut down")]
     ServerWasShutDown,
 

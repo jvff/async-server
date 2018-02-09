@@ -21,10 +21,11 @@ where
     status: Status<AsyncServerError<S::Error, T::Error>>,
 }
 
-impl<S, T> ActiveServer<S, T>
+impl<S, T, E> ActiveServer<S, T>
 where
     S: FiniteService,
-    T: Sink<SinkItem = S::Response> + Stream<Item = S::Request>,
+    T: Sink<SinkItem = S::Response, SinkError = E>
+        + Stream<Item = S::Request, Error = E>,
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     pub fn new(connection: T, service: S) -> Self {
@@ -87,7 +88,11 @@ where
                         self.live_responses.push_front(response);
                         self.status.update(Status::WouldBlock);
                     }
-                    error => self.status.update(error.map_err(Error::from)),
+                    error => {
+                        self.status.update(
+                            error.map_err(AsyncServerError::SendResponseError),
+                        )
+                    }
                 };
             }
         }
@@ -131,10 +136,11 @@ where
     }
 }
 
-impl<S, T> Future for ActiveServer<S, T>
+impl<S, T, E> Future for ActiveServer<S, T>
 where
     S: FiniteService,
-    T: Sink<SinkItem = S::Response> + Stream<Item = S::Request>,
+    T: Sink<SinkItem = S::Response, SinkError = E>
+        + Stream<Item = S::Request, Error = E>,
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     type Item = ();
