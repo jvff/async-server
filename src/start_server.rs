@@ -8,7 +8,6 @@ use tokio_proto::pipeline::ServerProto;
 use tokio_service::NewService;
 
 use super::async_server_error::AsyncServerError;
-use super::errors::{Error, ErrorKind};
 use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
 
@@ -62,7 +61,7 @@ where
     ) -> Poll<ListeningServer<S, P>, AsyncServerError<S::Error, P::Error>> {
         if let Some(service_factory) = self.service_factory.take() {
             let listener = TcpListener::bind(&self.address, &self.handle)
-                .map_err(Error::from)?;
+                .map_err(AsyncServerError::BindSocketError)?;
 
             let protocol = self.protocol.clone();
 
