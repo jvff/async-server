@@ -4,6 +4,7 @@ use std::mem;
 use futures::{Async, AsyncSink, Future, Poll, Sink, Stream};
 use futures::stream::FuturesUnordered;
 
+use super::async_server_error::AsyncServerError;
 use super::errors::Error;
 use super::finite_service::FiniteService;
 use super::status::Status;
@@ -117,7 +118,7 @@ where
         }
     }
 
-    fn poll_status(&mut self) -> Poll<(), Error> {
+    fn poll_status(&mut self) -> Poll<(), AsyncServerError> {
         let resulting_status = mem::replace(&mut self.status, Status::Active);
 
         resulting_status.into()
@@ -131,7 +132,7 @@ where
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     type Item = ();
-    type Error = Error;
+    type Error = AsyncServerError;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         while self.status.is_active() {
