@@ -17,7 +17,7 @@ where
     service: S,
     live_requests: FuturesUnordered<S::Future>,
     live_responses: VecDeque<S::Response>,
-    status: Status<Error>,
+    status: Status<AsyncServerError<S::Error>>,
 }
 
 impl<S, T> ActiveServer<S, T>
@@ -50,7 +50,7 @@ where
             if let Ok(Async::Ready(Some(request))) = new_request {
                 self.live_requests.push(self.service.call(request));
             } else {
-                self.status.update(new_request);
+                self.status.update(new_request.map_err(Error::from));
             }
         }
 
@@ -64,7 +64,7 @@ where
             if let Ok(Async::Ready(Some(response))) = maybe_response {
                 self.live_responses.push_back(response);
             } else {
-                self.status.update(maybe_response);
+                self.status.update(maybe_response.map_err(Error::from));
             }
         }
 
@@ -85,7 +85,7 @@ where
                         self.live_responses.push_front(response);
                         self.status.update(status_update);
                     }
-                    error => self.status.update(error),
+                    error => self.status.update(error.map_err(Error::from)),
                 };
             }
         }
@@ -95,7 +95,9 @@ where
 
     fn try_to_flush_responses(&mut self) -> &mut Self {
         if self.status.is_running() {
-            self.status.update(self.connection.poll_complete());
+            self.status.update(
+                self.connection.poll_complete().map_err(Error::from),
+            );
         }
 
         self
@@ -110,7 +112,7 @@ where
                 let service_status = match self.service.has_finished() {
                     Ok(true) => Status::Finished,
                     Ok(false) => Status::Active,
-                    Err(error) => Status::Error(error.into()),
+                    Err(error) => Status::Error(Error::from(error).into()),
                 };
 
                 self.status.update(service_status);
