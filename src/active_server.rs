@@ -36,10 +36,10 @@ where
         }
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), Error> {
+    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
         match self.service.force_stop() {
             Ok(()) => Ok(Async::Ready(())),
-            Err(error) => Err(error.into()),
+            Err(error) => Err(AsyncServerError::ServiceShutdownError(error)),
         }
     }
 
@@ -118,7 +118,7 @@ where
         }
     }
 
-    fn poll_status(&mut self) -> Poll<(), AsyncServerError> {
+    fn poll_status(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
         let resulting_status = mem::replace(&mut self.status, Status::Active);
 
         resulting_status.into()
@@ -132,7 +132,7 @@ where
     Error: From<S::Error> + From<T::SinkError> + From<T::Error>,
 {
     type Item = ();
-    type Error = AsyncServerError;
+    type Error = AsyncServerError<S::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         while self.status.is_active() {

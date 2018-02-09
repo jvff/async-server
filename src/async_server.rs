@@ -49,7 +49,7 @@ where
         )
     }
 
-    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError> {
+    pub fn shutdown(&mut self) -> Poll<(), AsyncServerError<S::Error>> {
         let shutdown_result = match *self {
             AsyncServer::Binding(ref mut handler) => {
                 handler.shutdown().map_err(AsyncServerError::from)
@@ -63,11 +63,9 @@ where
             AsyncServer::ListenCancelled(ref mut handler) => {
                 return handler.shutdown().map_err(AsyncServerError::from);
             }
-            AsyncServer::Active(ref mut handler) => {
-                handler.shutdown().map_err(AsyncServerError::from)
-            }
+            AsyncServer::Active(ref mut handler) => handler.shutdown(),
             AsyncServer::Disconnecting(ref mut handler) => {
-                return handler.shutdown().map_err(AsyncServerError::from);
+                return handler.shutdown();
             }
             AsyncServer::Dead => Ok(Async::Ready(())),
         };
@@ -141,7 +139,7 @@ where
     Error: From<P::Error> + From<S::Error>,
 {
     type Item = ();
-    type Error = AsyncServerError;
+    type Error = AsyncServerError<S::Error>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let maybe_new_state = match *self {
