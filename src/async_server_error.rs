@@ -11,6 +11,9 @@ pub enum AsyncServerError {
     #[fail(display = "AsyncServer was shut down")]
     ServerWasShutDown,
 
+    #[fail(display = "AsyncServer is shutting down")]
+    ShuttingDown,
+
     #[fail(display = "old format error")]
     OldError(#[cause] OldErrorWrapper),
 }

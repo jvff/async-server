@@ -10,7 +10,7 @@ use tokio_service::NewService;
 
 use super::active_server::ActiveServer;
 use super::async_server_error::AsyncServerError;
-use super::errors::{Error, ErrorKind};
+use super::errors::Error;
 use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
 use super::start_server::StartServer;
@@ -152,7 +152,7 @@ where
             AsyncServer::Dead => {
                 return Err(AsyncServerError::ServerWasShutDown);
             }
-            _ => return Err(ErrorKind::AsyncServerIsShuttingDown.into()),
+            _ => return Err(AsyncServerError::ShuttingDown),
         };
 
         if let Some(new_state) = maybe_new_state {

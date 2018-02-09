@@ -16,10 +16,6 @@ error_chain! {
             )
         }
 
-        AsyncServerIsShuttingDown {
-            description("AsyncServer is shutting down")
-        }
-
         IncorrectShutDownAttempt(future: String) {
             description("incorrect attempt to shut down a completed future")
             display(
