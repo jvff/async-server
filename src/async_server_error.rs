@@ -22,6 +22,9 @@ pub enum AsyncServerError<S, P> {
     #[fail(display = "StartServer can't shutdown server after it started")]
     IncorrectShutdownInStartServer,
 
+    #[fail(display = "ListeningServer can't be polled more than once")]
+    ListenedTwice,
+
     #[fail(display = "failed to get a new request from the protocol transport")]
     NewRequestError(#[cause] P),
 

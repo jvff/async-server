@@ -1,4 +1,4 @@
-use std::{io, mem};
+use std::io;
 use std::sync::{Arc, Mutex};
 
 use futures::{Async, Future, Poll};
@@ -9,7 +9,6 @@ use tokio_service::NewService;
 use super::active_server::ActiveServer;
 use super::async_server_error::AsyncServerError;
 use super::bound_connection_future::BoundConnectionFuture;
-use super::errors::Error;
 use super::finite_service::FiniteService;
 
 pub struct ListeningServer<S, P>
@@ -18,7 +17,7 @@ where
     S: NewService,
 {
     connection: BoundConnectionFuture<P>,
-    service: io::Result<S::Instance>,
+    new_service: Option<io::Result<S::Instance>>,
 }
 
 impl<S, P> ListeningServer<S, P>
@@ -33,7 +32,7 @@ where
         protocol: Arc<Mutex<P>>,
     ) -> Self {
         ListeningServer {
-            service: service_factory.new_service(),
+            new_service: Some(service_factory.new_service()),
             connection: BoundConnectionFuture::from(listener, protocol),
         }
     }
@@ -41,16 +40,22 @@ where
     pub fn shutdown(
         &mut self,
     ) -> Poll<(), AsyncServerError<S::Error, P::Error>> {
-        if let Ok(ref mut service) = self.service {
-            match service.force_stop() {
-                Ok(()) => Ok(Async::Ready(())),
-                Err(error) => {
-                    Err(AsyncServerError::ServiceShutdownError(error))
-                }
-            }
-        } else {
-            Err(AsyncServerError::IncorrectShutdownInListeningServer)
-        }
+        let mut service =
+            self.service(AsyncServerError::IncorrectShutdownInListeningServer)?;
+
+        service.force_stop()
+            .map(Async::Ready)
+            .map_err(AsyncServerError::ServiceShutdownError)
+    }
+
+    fn service(
+        &mut self,
+        empty_service_error: AsyncServerError<S::Error, P::Error>,
+    ) -> Result<S::Instance, AsyncServerError<S::Error, P::Error>> {
+        let new_service_result =
+            self.new_service.take().ok_or(empty_service_error)?;
+
+        new_service_result.map_err(AsyncServerError::ServiceCreationError)
     }
 }
 
@@ -68,14 +73,8 @@ where
             self.connection.poll().map_err(AsyncServerError::BindError)
         );
 
-        let service = mem::replace(
-            &mut self.service,
-            Err(io::Error::new(
-                io::ErrorKind::Other,
-                "server listening state can't be polled for two connections",
-            )),
-        ).map_err(Error::from);
+        let service = self.service(AsyncServerError::ListenedTwice)?;
 
-        Ok(Async::Ready(ActiveServer::new(connection, service?)))
+        Ok(Async::Ready(ActiveServer::new(connection, service)))
     }
 }
