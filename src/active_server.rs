@@ -17,7 +17,7 @@ where
     service: S,
     live_requests: FuturesUnordered<S::Future>,
     live_responses: VecDeque<S::Response>,
-    status: Status,
+    status: Status<Error>,
 }
 
 impl<S, T> ActiveServer<S, T>

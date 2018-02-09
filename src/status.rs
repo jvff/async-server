@@ -5,14 +5,14 @@ use futures::{Async, AsyncSink, Poll, StartSend};
 use super::errors::{Error, ErrorKind};
 
 #[derive(Debug)]
-pub enum Status {
+pub enum Status<E> {
     Active,
     Finished,
     WouldBlock,
-    Error(Error),
+    Error(E),
 }
 
-impl Status {
+impl<E> Status<E> {
     pub fn is_active(&self) -> bool {
         match *self {
             Status::Active => true,
@@ -28,7 +28,7 @@ impl Status {
         }
     }
 
-    pub fn update<T: Into<Status>>(&mut self, status_update: T) {
+    pub fn update<T: Into<Status<E>>>(&mut self, status_update: T) {
         let status_update = status_update.into();
 
         if status_update.is_more_severe_than(self) {
@@ -36,16 +36,16 @@ impl Status {
         }
     }
 
-    fn is_more_severe_than(&self, other: &Status) -> bool {
+    fn is_more_severe_than(&self, other: &Status<E>) -> bool {
         *self > *other
     }
 }
 
-impl<T, E> From<Poll<T, E>> for Status
+impl<T, E, F> From<Poll<T, F>> for Status<E>
 where
-    E: Into<Error>,
+    F: Into<E>,
 {
-    fn from(poll: Poll<T, E>) -> Status {
+    fn from(poll: Poll<T, F>) -> Self {
         match poll {
             Ok(Async::Ready(_)) => Status::Active,
             Ok(Async::NotReady) => Status::WouldBlock,
@@ -54,11 +54,11 @@ where
     }
 }
 
-impl<T, E> From<StartSend<T, E>> for Status
+impl<T, E, F> From<StartSend<T, F>> for Status<E>
 where
-    E: Into<Error>,
+    F: Into<E>,
 {
-    fn from(start_send: StartSend<T, E>) -> Status {
+    fn from(start_send: StartSend<T, F>) -> Self {
         match start_send {
             Ok(AsyncSink::Ready) => Status::Active,
             Ok(AsyncSink::NotReady(_)) => Status::WouldBlock,
@@ -67,11 +67,11 @@ where
     }
 }
 
-impl<E> Into<Poll<(), E>> for Status
+impl<E, F> Into<Poll<(), F>> for Status<E>
 where
-    E: From<Error>,
+    F: From<E> + From<Error>,
 {
-    fn into(self) -> Poll<(), E> {
+    fn into(self) -> Poll<(), F> {
         match self {
             Status::Finished => Ok(Async::Ready(())),
             Status::WouldBlock => Ok(Async::NotReady),
@@ -86,7 +86,7 @@ where
     }
 }
 
-impl PartialEq for Status {
+impl<E> PartialEq for Status<E> {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
             (&Status::Error(_), &Status::Error(_)) => false,
@@ -98,7 +98,7 @@ impl PartialEq for Status {
     }
 }
 
-impl PartialOrd for Status {
+impl<E> PartialOrd for Status<E> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let ordering = if self.eq(other) {
             Ordering::Equal
