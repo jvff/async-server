@@ -55,11 +55,7 @@ where
                 }
             }
         } else {
-            Err(
-                ErrorKind::IncorrectShutDownAttempt(
-                    String::from("StartServer"),
-                ).into(),
-            )
+            Err(AsyncServerError::IncorrectShutdownInStartServer)
         }
     }
 
