@@ -14,6 +14,9 @@ use super::finite_service::FiniteService;
 use super::listening_server::ListeningServer;
 use super::start_server::StartServer;
 
+type Error<S: NewService, P: ServerProto<TcpStream>> =
+    AsyncServerError<S::Error, P::Error>;
+
 pub enum AsyncServer<S, P>
 where
     S: NewService<Request = P::Request>,
@@ -47,9 +50,7 @@ where
         )
     }
 
-    pub fn shutdown(
-        &mut self,
-    ) -> Poll<(), AsyncServerError<S::Error, P::Error>> {
+    pub fn shutdown(&mut self) -> Poll<(), Error<S, P>> {
         let shutdown_result = match *self {
             AsyncServer::Binding(ref mut handler) => handler.shutdown(),
             AsyncServer::BindCancelled(ref mut handler) => {
@@ -131,7 +132,7 @@ where
     S::Instance: FiniteService,
 {
     type Item = ();
-    type Error = AsyncServerError<S::Error, P::Error>;
+    type Error = Error<S, P>;
 
     fn poll(&mut self) -> Poll<Self::Item, Self::Error> {
         let maybe_new_state = match *self {
